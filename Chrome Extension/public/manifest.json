@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3, 
+  "name": "FinGuard Chrome Extension",
+  "version": "0.0.1",
+  "description": "A simple extension for Fintech Guard",
+  "icons": { 
+    "16": "vite.svg",
+    "48": "vite.svg",
+    "128": "vite.svg"
+  },
+  "action": {
+    "default_popup": "index.html",
+    "default_title": "FinGuard" 
+  },
+  "permissions": [
+    "activeTab",  
+    "scripting",  
+    "storage"     
+  ]
+}
