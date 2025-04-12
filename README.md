@@ -1,4 +1,4 @@
-### FinGuard  
+<h1>FinGuard </h1>
 "Smart Spending, Safer Shopping, Healthier Finances."  
 
 ---
