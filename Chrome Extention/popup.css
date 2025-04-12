@@ -1,0 +1,61 @@
+/* popup.css */
+
+body {
+  font-family: "Roboto", sans-serif;
+  background-color: #f0f0f0;
+  padding: 20px;
+  text-align: center;
+}
+
+header {
+  margin-bottom: 20px;
+  margin-top: -20px;
+}
+
+h1 {
+  font-size: 32px;
+  color: #ff970b;
+}
+
+.content {
+  min-width: 200px;
+  margin: 0 auto;
+  background-color: #fff;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+label {
+  font-weight: bold;
+  margin-right: 10px;
+  font-size: 16px;
+}
+
+#startDate,
+#endDate {
+  font-style: italic;
+  color: #7a7a7a;
+}
+
+button {
+  background-color: #44b058;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  margin-top: 10px;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+button:hover {
+  background-color: #3d854a;
+}
+
+pre {
+  background-color: #f8f9fa;
+  padding: 10px;
+  border: 1px solid #ccc;
+  max-width: 300px;
+  overflow-x: auto;
+}
