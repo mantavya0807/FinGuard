@@ -1,0 +1,142 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply antialiased;
+  }
+  
+  body {
+    @apply bg-gray-50 text-gray-900 font-sans dark:bg-dark-900 dark:text-gray-100 transition-colors duration-200;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display font-semibold;
+  }
+  
+  h1 {
+    @apply text-3xl md:text-4xl;
+  }
+  
+  h2 {
+    @apply text-2xl md:text-3xl;
+  }
+  
+  h3 {
+    @apply text-xl md:text-2xl;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white rounded-xl shadow-card p-6 transition-all duration-300 ease-in-out dark:bg-dark-800 dark:border dark:border-dark-700;
+  }
+  
+  .card:hover {
+    @apply shadow-card-hover dark:shadow-dark-card-hover;
+  }
+  
+  .btn {
+    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-dark-900;
+  }
+  
+  .btn-primary {
+    @apply bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary-600 text-white hover:bg-secondary-700 focus:ring-secondary-500;
+  }
+  
+  .btn-outline {
+    @apply border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300 dark:hover:bg-dark-700;
+  }
+  
+  .btn-danger {
+    @apply bg-danger-600 text-white hover:bg-danger-700 focus:ring-danger-500;
+  }
+  
+  .input-field {
+    @apply block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-dark-800 dark:border-dark-600 dark:text-white dark:focus:border-primary-500 dark:placeholder-gray-400;
+  }
+  
+  .label {
+    @apply block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300;
+  }
+  
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+  
+  .badge-success {
+    @apply bg-success-100 text-success-800 dark:bg-success-900 dark:text-success-200;
+  }
+  
+  .badge-warning {
+    @apply bg-warning-100 text-warning-800 dark:bg-warning-900 dark:text-warning-200;
+  }
+  
+  .badge-danger {
+    @apply bg-danger-100 text-danger-800 dark:bg-danger-900 dark:text-danger-200;
+  }
+  
+  .badge-info {
+    @apply bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200;
+  }
+  
+  .sidebar-link {
+    @apply flex items-center px-4 py-2 text-gray-600 rounded-lg hover:bg-gray-100 hover:text-primary-600 transition-colors duration-200 dark:text-gray-300 dark:hover:bg-dark-700 dark:hover:text-primary-400;
+  }
+  
+  .sidebar-link.active {
+    @apply bg-primary-50 text-primary-700 font-medium dark:bg-primary-900/30 dark:text-primary-400;
+  }
+  
+  .notification-dot {
+    @apply absolute top-0 right-0 h-2 w-2 rounded-full bg-danger-500 ring-2 ring-white dark:ring-dark-800;
+  }
+  
+  .stat-card {
+    @apply flex flex-col p-6 bg-white rounded-xl shadow-card dark:bg-dark-800 dark:border dark:border-dark-700;
+  }
+  
+  .stat-title {
+    @apply text-sm font-medium text-gray-500 dark:text-gray-400;
+  }
+  
+  .stat-value {
+    @apply text-3xl font-semibold text-gray-900 mt-1 dark:text-white;
+  }
+  
+  .stat-description {
+    @apply text-sm text-gray-500 mt-2 dark:text-gray-400;
+  }
+  
+  .chart-container {
+    @apply p-4 bg-white rounded-xl shadow-card dark:bg-dark-800;
+  }
+  
+  .transaction-item {
+    @apply flex items-center p-4 border-b border-gray-100 last:border-0 dark:border-dark-700;
+  }
+  
+  .card-item {
+    @apply relative p-4 rounded-xl border border-gray-200 transition-all duration-300 hover:border-primary-300 hover:shadow-md dark:border-dark-700 dark:hover:border-primary-700;
+  }
+  
+  /* Dark mode specific classes */
+  .dark-mode-text {
+    @apply dark:text-gray-100;
+  }
+  
+  .dark-mode-bg {
+    @apply dark:bg-dark-800;
+  }
+  
+  .dark-mode-border {
+    @apply dark:border-dark-700;
+  }
+}
