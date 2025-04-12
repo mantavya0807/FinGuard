@@ -10,7 +10,7 @@ def configure_gemini():
     genai.configure(api_key=api_key)
 
 
-def is_gambling_website(url: str) -> int | None:
+def checkgambling(url: str) -> int | None:
 
     # Using a faster/cheaper model suitable for classification tasks.
     # You could also use 'gemini-pro' or other models.
@@ -40,9 +40,9 @@ def is_gambling_website(url: str) -> int | None:
 
 
     if result_text == '1':
-        return 1
+        return True
     elif result_text == '0':
-        return 0
+        return False
     else:
 
         print(f"Warning: Unexpected response format from Gemini API for {url}: '{result_text}'. Expected '1' or '0'.", file=sys.stderr)
@@ -56,7 +56,7 @@ if __name__ == "__main__":
 
     configure_gemini()
 
-    classification_result = is_gambling_website(website_url)
+    classification_result = checkgambling(website_url)
 
     # Output the result
     if classification_result is not None:

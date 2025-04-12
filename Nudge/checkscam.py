@@ -10,7 +10,7 @@ dotenv.load_dotenv()
 class IPQS:
     key = os.getenv('IPQS_Key')
     
-    def malicious_url_scanner_api(self, url: str, vars: dict = {}) -> dict:
+    def checkscam(self, url: str, vars: dict = {}) -> dict:
     
         api_url = 'https://www.ipqualityscore.com/api/json/url/%s/%s' % (self.key, urllib.parse.quote_plus(url))
         response = requests.get(api_url, params=vars)
@@ -39,6 +39,6 @@ if __name__ == "__main__":
     }
     
     ipqs = IPQS()
-    result = ipqs.malicious_url_scanner_api(URL, additional_params)
+    result = ipqs.checkscam(URL, additional_params)
     
     print(result)
