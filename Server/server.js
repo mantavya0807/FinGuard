@@ -25,6 +25,12 @@ const rewardsUri =
 const rewardsDbName = "card_rewards";
 const rewardsCollectionName = "rewards";
 
+// Database information for transactions
+const transactionsUri =
+  "mongodb+srv://manas1:hardpass@cluster0.hzb6xlj.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
+const transactionsDbName = "creditCardsDB";
+const transactionsCollectionName = "transactions";
+
 // Helper function to connect to MongoDB
 async function connectToMongoDB(uri) {
   const client = new mongodb.MongoClient(uri, {
@@ -211,6 +217,60 @@ app.get("/getCardDetails", async (req, res) => {
     res.status(500).json({ 
       success: false, 
       error: "Failed to fetch card details",
+      details: error.message
+    });
+  }
+});
+
+// API endpoint to save transaction data
+app.post("/saveTransaction", async (req, res) => {
+  try {
+    const transactionData = req.body;
+    
+    if (!transactionData || !transactionData.cardName) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Transaction data is required" 
+      });
+    }
+    
+    console.log("Saving transaction:", transactionData);
+    
+    // Add a timestamp if not provided
+    if (!transactionData.date) {
+      transactionData.date = new Date().toISOString();
+    }
+    
+    // Connect to MongoDB
+    const client = await connectToMongoDB(transactionsUri);
+    const db = client.db(transactionsDbName);
+    const collection = db.collection(transactionsCollectionName);
+    
+    // Insert the transaction data
+    const result = await collection.insertOne({
+      ...transactionData,
+      createdAt: new Date()
+    });
+    
+    await client.close();
+    
+    if (result.acknowledged) {
+      res.json({
+        success: true,
+        message: "Transaction saved successfully",
+        transactionId: result.insertedId
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: "Failed to save transaction" 
+      });
+    }
+  } catch (error) {
+    console.error("Error saving transaction:", error);
+    res.status(500).json({ 
+      success: false, 
+      error: "Failed to save transaction",
       details: error.message
     });
   }

@@ -16,6 +16,8 @@ function Detect() {
   const [isAnalyzingSecurity, setIsAnalyzingSecurity] = useState(false);
   const [isAutofilling, setIsAutofilling] = useState(false);
   const [autofillStatus, setAutofillStatus] = useState(null);
+  const [activeCardDetails, setActiveCardDetails] = useState(null);
+  const [transactionDetails, setTransactionDetails] = useState(null);
 
   useEffect(() => {
     chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
@@ -29,7 +31,9 @@ function Detect() {
             func: () => {
               const hostname = window.location.hostname.replace(/^www\./, "");
               const parts = hostname.split(".");
-              const merchant = parts.length > 0 ? parts[0] : "unknown";
+              // Capitalize first letter of merchant name
+              const merchantRaw = parts.length > 0 ? parts[0] : "unknown";
+              const merchant = merchantRaw.charAt(0).toUpperCase() + merchantRaw.slice(1);
 
               const checkoutKeywords = [
                 "checkout", "payment", "purchase", "pay now", 
@@ -131,6 +135,8 @@ function Detect() {
     
     setIsAutofilling(true);
     setAutofillStatus(null);
+    setActiveCardDetails(null);
+    setTransactionDetails(null);
     
     try {
       // 1. Get card details from the server
@@ -144,18 +150,27 @@ function Detect() {
         return;
       }
       
-      // 2. Autofill the card details in the page
-      const success = await autofillCardDetails(cardDetails);
+      // Store card details for display
+      setActiveCardDetails(cardDetails);
       
-      if (success) {
+      // 2. Autofill the card details in the page
+      const result = await autofillCardDetails(cardDetails);
+      
+      console.log("Autofill result:", result);
+      
+      if (result.success) {
+        setTransactionDetails(result.transactionDetails);
         setAutofillStatus({ 
           success: true, 
-          message: `Successfully filled ${cardDetails.cardName} details.` 
+          message: `Successfully filled ${cardDetails.cardName} details.`,
+          filledFields: result.formFields?.length || 0
         });
       } else {
+        setTransactionDetails(null);
         setAutofillStatus({ 
           success: false, 
-          message: "Could not autofill the card details. Form fields may not be detected." 
+          message: "Could not autofill the card details. Form fields may not be detected.",
+          debug: result.debugInfo
         });
       }
     } catch (error) {
@@ -170,121 +185,216 @@ function Detect() {
   };
 
   return (
-    <div style={{ padding: "16px", fontFamily: "system-ui, sans-serif" }}>
-      <h2 style={{ margin: "0 0 16px", color: "#333" }}>FinGuard</h2>
+    <div className="finguard-container">
+      <div className="finguard-header">
+        <img src="/icons/logo.svg" alt="FinGuard Logo" className="finguard-logo" />
+        <h1 className="finguard-title">FinGuard</h1>
+      </div>
       
       {loading ? (
-        <p>Loading...</p>
+        <div className="finguard-loading">
+          <div className="finguard-spinner"></div>
+          <p>Analyzing page...</p>
+        </div>
       ) : (
         <>
-          <div style={{ marginBottom: "20px" }}>
-            <h3 style={{ margin: "0 0 8px", color: "#444", fontSize: "16px" }}>Merchant Information</h3>
-            <p style={{ margin: "4px 0", color: "#555" }}>Merchant: {merchant}</p>
-            <p style={{ margin: "4px 0", color: "#555" }}>Category: {category}</p>
+          <div className="finguard-section">
+            <h2 className="finguard-section-title">Merchant Information</h2>
+            <div className="finguard-card">
+              <div className="finguard-info-row">
+                <span className="finguard-info-label">Merchant:</span>
+                <span className="finguard-info-value">{merchant}</span>
+              </div>
+              <div className="finguard-info-row">
+                <span className="finguard-info-label">Category:</span>
+                <span className="finguard-info-value">{category}</span>
+              </div>
+            </div>
           </div>
           
-          <div style={{ marginBottom: "20px" }}>
-            <h3 style={{ margin: "0 0 8px", color: "#444", fontSize: "16px" }}>Card Recommendations</h3>
+          <div className="finguard-section">
+            <h2 className="finguard-section-title">Card Recommendations</h2>
+            
             {isCheckoutPage ? (
               bestCard ? (
-                <div style={{ 
-                  padding: "12px", 
-                  backgroundColor: "#f0f8ff", 
-                  borderRadius: "4px", 
-                  border: "1px solid #cce5ff",
-                  marginBottom: "12px"
-                }}>
-                  <p style={{ margin: "0 0 12px", color: "#004085" }}>{bestCard.message}</p>
+                <div className="finguard-card">
+                  <div className="finguard-message finguard-message-info">
+                    {bestCard.message}
+                  </div>
                   
                   <button
                     onClick={handleAutofillClick}
                     disabled={isAutofilling}
-                    style={{
-                      padding: "8px 12px",
-                      backgroundColor: "#0d6efd",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: isAutofilling ? "not-allowed" : "pointer",
-                      fontSize: "14px",
-                      width: "100%",
-                      opacity: isAutofilling ? 0.7 : 1
-                    }}
+                    className={`finguard-button finguard-button-primary`}
                   >
                     {isAutofilling ? "Filling Card Details..." : "Autofill Card Details"}
                   </button>
                   
                   {autofillStatus && (
-                    <div style={{
-                      marginTop: "8px",
-                      padding: "8px",
-                      backgroundColor: autofillStatus.success ? "#d4edda" : "#f8d7da",
-                      color: autofillStatus.success ? "#155724" : "#721c24",
-                      borderRadius: "4px",
-                      fontSize: "12px"
-                    }}>
+                    <div className={`finguard-message ${autofillStatus.success ? 'finguard-message-success' : 'finguard-message-danger'}`}
+                      style={{ marginTop: '12px' }}
+                    >
                       {autofillStatus.message}
+                    </div>
+                  )}
+                  
+                  {activeCardDetails && (
+                    <div style={{
+                      marginTop: "16px",
+                      padding: "12px",
+                      backgroundColor: "var(--gray-100)",
+                      borderRadius: "var(--border-radius)",
+                      border: "1px solid var(--gray-300)"
+                    }}>
+                      <h4 style={{ 
+                        margin: "0 0 8px", 
+                        fontSize: "14px", 
+                        color: "var(--gray-700)",
+                        borderBottom: "1px solid var(--gray-300)",
+                        paddingBottom: "4px"
+                      }}>
+                        Card Details Used:
+                      </h4>
+                      
+                      <ul style={{ 
+                        margin: "0", 
+                        padding: "0 0 0 16px", 
+                        fontSize: "12px", 
+                        color: "var(--gray-700)" 
+                      }}>
+                        <li>Card: {activeCardDetails.cardName}</li>
+                        <li>Number: {activeCardDetails.cardNumber.replace(/(\d{4})/g, '$1 ').trim()}</li>
+                        <li>Cardholder: {activeCardDetails.cardHolder}</li>
+                        <li>Expires: {activeCardDetails.expiryDate}</li>
+                        <li>CVV: {activeCardDetails.cvv}</li>
+                      </ul>
+                      
+                      <p style={{ 
+                        margin: "8px 0 0", 
+                        fontSize: "10px", 
+                        color: "var(--gray-600)",
+                        fontStyle: "italic"
+                      }}>
+                        Note: This is a test card for demonstration purposes only.
+                      </p>
+                    </div>
+                  )}
+                  
+                  {transactionDetails && transactionDetails.amount && (
+                    <div className="finguard-transaction-info" style={{
+                      marginTop: "16px",
+                      padding: "12px",
+                      backgroundColor: "var(--gray-100)",
+                      borderRadius: "var(--border-radius)",
+                      border: "1px solid var(--gray-300)"
+                    }}>
+                      <h4 style={{ 
+                        margin: "0 0 8px", 
+                        fontSize: "14px", 
+                        color: "var(--gray-700)",
+                        borderBottom: "1px solid var(--gray-300)",
+                        paddingBottom: "4px"
+                      }}>
+                        Transaction Details:
+                      </h4>
+                      <div style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        margin: "12px 0",
+                        padding: "8px",
+                        backgroundColor: "var(--success-light)",
+                        borderRadius: "var(--border-radius)",
+                        border: "1px solid var(--success-color)",
+                        fontSize: "16px",
+                        fontWeight: "600"
+                      }}>
+                        <span style={{ marginRight: "4px" }}>
+                          {transactionDetails.currency === 'USD' ? '$' : 
+                           transactionDetails.currency === 'EUR' ? '€' : 
+                           transactionDetails.currency === 'GBP' ? '£' : ''}
+                        </span>
+                        <span>
+                          {transactionDetails.amount.toFixed(2)}
+                        </span>
+                      </div>
+                      <p style={{
+                        margin: "4px 0 0",
+                        fontSize: "11px",
+                        color: "var(--gray-600)",
+                        textAlign: "center"
+                      }}>
+                        Transaction recorded at {new Date().toLocaleTimeString()}
+                      </p>
                     </div>
                   )}
                 </div>
               ) : error ? (
-                <p style={{ color: "#856404", backgroundColor: "#fff3cd", padding: "8px", borderRadius: "4px" }}>
+                <div className="finguard-message finguard-message-warning">
                   {error}
-                </p>
+                </div>
               ) : (
-                <p style={{ color: "#666" }}>No card recommendations available.</p>
+                <div className="finguard-empty-state">
+                  No card recommendations available.
+                </div>
               )
             ) : (
-              <p style={{ color: "#666", fontStyle: "italic" }}>
-                Card recommendations will appear when you're on a checkout page.
-              </p>
+              <div className="finguard-card">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ margin: '0 auto 12px' }}>
+                  <path d="M20 4H4C2.89 4 2.01 4.89 2.01 6L2 18C2 19.11 2.89 20 4 20H20C21.11 20 22 19.11 22 18V6C22 4.89 21.11 4 20 4ZM20 18H4V12H20V18ZM20 8H4V6H20V8Z" fill="var(--gray-500)"/>
+                </svg>
+                <p style={{ color: "var(--gray-600)", fontStyle: "italic", fontSize: "0.875rem" }}>
+                  Card recommendations will appear when you're on a checkout page.
+                </p>
+              </div>
             )}
           </div>
           
-          <div>
-            <h3 style={{ margin: "0 0 8px", color: "#444", fontSize: "16px" }}>Security Analysis</h3>
+          <div className="finguard-section">
+            <h2 className="finguard-section-title">
+              Security Analysis
+              {!isAnalyzingSecurity && (
+                <span 
+                  className={`finguard-status-badge ${
+                    nudgeText && nudgeText !== "No security concerns detected for this website."
+                      ? 'finguard-status-warning'
+                      : 'finguard-status-secure'
+                  }`}
+                >
+                  {nudgeText && nudgeText !== "No security concerns detected for this website."
+                    ? 'Warning'
+                    : 'Secure'
+                  }
+                </span>
+              )}
+            </h2>
+            
             {isAnalyzingSecurity ? (
-              <p>Analyzing website safety...</p>
+              <div className="finguard-loading">
+                <div className="finguard-spinner"></div>
+                <p>Analyzing security...</p>
+              </div>
             ) : (
-              <>
-                <div style={{ 
-                  padding: "12px", 
-                  borderRadius: "4px",
-                  backgroundColor: nudgeText && nudgeText !== "No security concerns detected for this website." 
-                    ? "#fff3cd" 
-                    : "#d4edda",
-                  border: nudgeText && nudgeText !== "No security concerns detected for this website."
-                    ? "1px solid #ffeeba"
-                    : "1px solid #c3e6cb",
-                  marginBottom: "12px"
-                }}>
-                  <p style={{ 
-                    margin: "0",
-                    color: nudgeText && nudgeText !== "No security concerns detected for this website."
-                      ? "#856404"
-                      : "#155724"
-                  }}>
-                    {nudgeText}
-                  </p>
+              <div className="finguard-card">
+                <div 
+                  className={`finguard-message ${
+                    nudgeText && nudgeText !== "No security concerns detected for this website."
+                      ? 'finguard-message-warning'
+                      : 'finguard-message-success'
+                  }`}
+                >
+                  {nudgeText}
                 </div>
                 
                 {nudgeText && nudgeText !== "No security concerns detected for this website." && (
                   <button 
                     onClick={handleShowNudgeClick}
-                    style={{
-                      padding: "8px 12px",
-                      backgroundColor: "#ff9800",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                      fontSize: "14px"
-                    }}
+                    className="finguard-button finguard-button-warning"
                   >
                     Show Security Alert
                   </button>
                 )}
-              </>
+              </div>
             )}
           </div>
         </>
