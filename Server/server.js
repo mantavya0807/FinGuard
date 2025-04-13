@@ -1,12 +1,18 @@
 const express = require("express");
 const mongodb = require("mongodb");
 const cors = require("cors");
+const path = require('path');
+const bodyParser = require('body-parser');
+
+// Import the generateNudge function from Nudge/js/generateNudge.js
+const { generateNudge } = require('../Nudge/js/generateNudge');
 
 const app = express();
 const port = 3000; // You can change the port as needed
 
 // Enable CORS to allow requests from your Chrome extension
 app.use(cors());
+app.use(bodyParser.json());
 
 // MongoDB connection details
 const userCardsUri =
@@ -101,6 +107,37 @@ app.get("/findBestCard", async (req, res) => {
       .status(500)
       .json({ message: "An error occurred while finding the best card." });
   }
+});
+
+// API endpoint to generate safety nudges
+app.post("/generateNudge", async (req, res) => {
+  try {
+    const { url } = req.body;
+    
+    if (!url) {
+      return res.status(400).json({ error: "URL is required" });
+    }
+    
+    console.log(`Generating nudge for URL: ${url}`);
+    const nudgeMessage = await generateNudge(url);
+    
+    if (nudgeMessage) {
+      res.json({ nudge: nudgeMessage });
+    } else {
+      res.json({ nudge: null, message: "No significant risks detected" });
+    }
+  } catch (error) {
+    console.error("Error generating nudge:", error);
+    res.status(500).json({ 
+      error: "Failed to generate nudge", 
+      details: error.message 
+    });
+  }
+});
+
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.json({ status: "ok" });
 });
 
 // Start the server
