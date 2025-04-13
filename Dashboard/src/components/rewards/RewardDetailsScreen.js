@@ -43,7 +43,7 @@ const RewardDetailsScreen = () => {
         setRewards(rewardsData);
         
         // Fetch offers for this card
-        const offersData = await getOffers({ card_name: formattedCardName });
+        const offersData = await getOffers({ card_name: formattedCardName }); 
         setOffers(offersData);
         
         // Create card data object

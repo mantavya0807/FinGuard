@@ -408,72 +408,7 @@ const Dashboard = () => {
     }
   };
   
-  // Render Connect Button/Modal
-  const renderConnectSection = () => {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl p-8 text-white shadow-lg mb-8"
-      >
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
-          <div>
-            <h2 className="text-3xl font-bold mb-4">Connect Your Financial World</h2>
-            <p className="text-indigo-100 mb-6">
-              Link your bank accounts and credit cards to unlock powerful insights, optimize rewards, 
-              and take control of your financial health.
-            </p>
-            <div className="flex flex-wrap gap-4">
-              {linkToken ? (
-                <div className="usePlaidLink">
-                  <button
-                    onClick={() => window.open(`https://cdn.plaid.com/link/v2/stable/link.html?token=${linkToken}`, 'Plaid Link', 'width=600,height=600')}
-                    className="flex items-center bg-white text-indigo-600 px-4 py-2 rounded-lg font-medium hover:bg-indigo-50 transition-colors"
-                  >
-                    <BuildingOfficeIcon className="h-5 w-5 mr-2" />
-                    Connect with Plaid
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={generateLinkToken}
-                  className="flex items-center bg-white text-indigo-600 px-4 py-2 rounded-lg font-medium hover:bg-indigo-50 transition-colors"
-                  disabled={loading.linkToken}
-                >
-                  {loading.linkToken ? (
-                    <>
-                      <ArrowPathIcon className="h-5 w-5 mr-2 animate-spin" />
-                      Preparing...
-                    </>
-                  ) : (
-                    <>
-                      <BuildingOfficeIcon className="h-5 w-5 mr-2" />
-                      Connect with Plaid
-                    </>
-                  )}
-                </button>
-              )}
-              <button
-                onClick={() => navigate('/cards/add')}
-                className="flex items-center bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-800 transition-colors"
-              >
-                <CreditCardIcon className="h-5 w-5 mr-2" />
-                Add Cards Manually
-              </button>
-            </div>
-          </div>
-          <div className="hidden lg:flex lg:justify-center">
-            <img 
-              src="/api/placeholder/400/320" 
-              alt="Connect finances" 
-              className="max-h-56" 
-            />
-          </div>
-        </div>
-      </motion.div>
-    );
-  };
+  
   
   // Stats
   const renderStats = () => {
@@ -891,11 +826,7 @@ const Dashboard = () => {
         </div>
       </motion.div>
       
-      {/* Conditional First Visit Connect Section */}
-      {(!accounts || accounts.length === 0) && (
-        renderConnectSection()
-      )}
-      
+
       {/* Stats Cards */}
       {renderStats()}
       

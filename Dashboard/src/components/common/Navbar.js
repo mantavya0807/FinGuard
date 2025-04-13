@@ -96,19 +96,7 @@ const Navbar = () => {
               </motion.span>
             </Link>
             
-            {/* Desktop Search Bar */}
-            <div className="hidden md:ml-6 md:flex md:items-center">
-              <form onSubmit={handleSearch} className="relative">
-                <input
-                  type="text"
-                  placeholder="Search transactions, cards..."
-                  className="input-field w-64 pl-10 bg-gray-50 dark:bg-dark-700 border-gray-200 dark:border-dark-600 focus:border-primary-400 focus:ring-primary-400"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              </form>
-            </div>
+
           </div>
           
           {/* Desktop Navigation */}

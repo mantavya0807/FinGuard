@@ -72,9 +72,36 @@ const SecurityScreen = () => {
     }
   };
 
+  // Add this helper function to check if an ID is a valid MongoDB ObjectId
+  const isValidObjectId = (id) => {
+    return id && /^[0-9a-fA-F]{24}$/.test(id);
+  };
+
   // Approve a transaction
   const handleApproveTransaction = async (transactionId) => {
+    // Check for undefined ID
+    if (!transactionId) {
+      console.error('Cannot approve transaction: Missing transaction ID');
+      toast.error('Failed to approve transaction: Missing ID');
+      return;
+    }
+    
     try {
+      console.log('Approving transaction with ID:', transactionId);
+      
+      // Check if using mock data (non-MongoDB IDs)
+      if (!isValidObjectId(transactionId)) {
+        console.log('Using mock transaction - simulating approval');
+        // For mock data, just remove from local state
+        setPhishingTransactions(prev => 
+          prev.filter(transaction => transaction.id !== transactionId)
+        );
+        toast.success('Transaction approved');
+        if (showDetailModal) setShowDetailModal(false);
+        return;
+      }
+      
+      // For real data with valid MongoDB ObjectIds
       await securityApi.approveTransaction(transactionId);
       
       // Remove from the list
@@ -87,12 +114,43 @@ const SecurityScreen = () => {
     } catch (error) {
       console.error('Error approving transaction:', error);
       toast.error('Failed to approve transaction');
+      
+      // If using mock data, still remove the transaction
+      if (phishingTransactions === mockPhishingTransactions) {
+        setPhishingTransactions(prev => 
+          prev.filter(transaction => transaction.id !== transactionId)
+        );
+        if (showDetailModal) setShowDetailModal(false);
+      }
     }
   };
 
   // Reject a transaction
   const handleRejectTransaction = async (transactionId) => {
+    // Check for undefined ID
+    if (!transactionId) {
+      console.error('Cannot reject transaction: Missing transaction ID');
+      toast.error('Failed to reject transaction: Missing ID');
+      return;
+    }
+    
     try {
+      // Log the transaction ID for debugging
+      console.log('Rejecting transaction with ID:', transactionId);
+      
+      // Check if using mock data (non-MongoDB IDs)
+      if (!isValidObjectId(transactionId)) {
+        console.log('Using mock transaction - simulating rejection');
+        // For mock data, just remove from local state
+        setPhishingTransactions(prev => 
+          prev.filter(transaction => transaction.id !== transactionId)
+        );
+        toast.success('Transaction rejected and removed');
+        if (showDetailModal) setShowDetailModal(false);
+        return;
+      }
+      
+      // For real data with valid MongoDB ObjectIds
       await securityApi.rejectTransaction(transactionId);
       
       // Remove from the list
@@ -105,6 +163,14 @@ const SecurityScreen = () => {
     } catch (error) {
       console.error('Error rejecting transaction:', error);
       toast.error('Failed to reject transaction');
+      
+      // If using mock data, still remove the transaction to simulate successful rejection
+      if (phishingTransactions === mockPhishingTransactions) {
+        setPhishingTransactions(prev => 
+          prev.filter(transaction => transaction.id !== transactionId)
+        );
+        if (showDetailModal) setShowDetailModal(false);
+      }
     }
   };
 
@@ -114,7 +180,7 @@ const SecurityScreen = () => {
     try {
       const response = await securityApi.runFraudScan();
       
-      toast.success(`Scan complete: ${response.data.flagged} suspicious transactions found`);
+    
       fetchSuspiciousTransactions();
       fetchSecurityStats();
     } catch (error) {

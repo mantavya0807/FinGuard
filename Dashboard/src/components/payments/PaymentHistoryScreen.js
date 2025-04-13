@@ -119,32 +119,24 @@ const PaymentHistoryScreen = () => {
       console.log('Final sorted transactions:', transactionData);
       setPayments(transactionData);
       
-      if (statsResponse && statsResponse.totalStats) {
-        setStats({
-          totalSpent: statsResponse.totalStats.totalSpent || 0,
-          totalIncome: statsResponse.totalStats.totalIncome || 0,
-          totalRewards: statsResponse.totalStats.totalRewards || 0
-        });
-      } else {
-        setStats({
-          totalSpent: transactionData.reduce((acc, payment) => {
-            return acc + (payment.amount < 0 ? Math.abs(payment.amount) : 0);
-          }, 0),
-          totalIncome: transactionData.reduce((acc, payment) => {
-            return acc + (payment.amount > 0 ? payment.amount : 0);
-          }, 0),
-          totalRewards: transactionData.reduce((acc, payment) => {
-            // Look for rewards in multiple possible locations
-            const rewardAmount = 
-              payment.rewardsEarned || // Check standard property
-              payment.rewards || // Check alternative name
-              (payment.rewards_info && payment.rewards_info.amount) || // Check if nested
-              (payment.amount < 0 ? Math.abs(payment.amount) * 0.01 : 0); // Fallback calculation (1% of spend)
-            
-            return acc + (typeof rewardAmount === 'number' ? rewardAmount : 0);
-          }, 0)
-        });
-      }
+      setStats({
+        totalSpent: transactionData.reduce((acc, payment) => {
+          return acc + (payment.amount < 0 ? Math.abs(payment.amount) : 0);
+        }, 0),
+        totalIncome: transactionData.reduce((acc, payment) => {
+          return acc + (payment.amount > 0 ? payment.amount : 0);
+        }, 0),
+        totalRewards: transactionData.reduce((acc, payment) => {
+          // Look for rewards in multiple possible locations
+          const rewardAmount = 
+            payment.rewardsEarned || // Check standard property
+            payment.rewards || // Check alternative name
+            (payment.rewards_info && payment.rewards_info.amount) || // Check if nested
+            (payment.amount < 0 ? Math.abs(payment.amount) * 0.01 : 0); // Fallback calculation (1% of spend)
+          
+          return acc + (typeof rewardAmount === 'number' ? rewardAmount : 0);
+        }, 0)
+      });
       
       console.log('Stats calculated:', stats);
       
