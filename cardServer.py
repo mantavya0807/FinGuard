@@ -11,27 +11,94 @@ from bs4 import BeautifulSoup
 # Replace the placeholder URI with your MongoDB Atlas connection string.
 MONGO_URI = "mongodb+srv://manas1:hardpass@cluster0.hzb6xlj.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 DATABASE_NAME = "card_rewards"
-COLLECTION_NAME = "rewards"
+REWARDS_COLLECTION_NAME = "rewards"
+OFFERS_COLLECTION_NAME = "offers"
 
 def get_mongodb_collection():
-    """Initialize MongoDB client and return the collection."""
+    """Initialize MongoDB client and return the rewards collection."""
     client = MongoClient(MONGO_URI)
     db = client[DATABASE_NAME]
-    collection = db[COLLECTION_NAME]
+    collection = db[REWARDS_COLLECTION_NAME]
     return collection
 
+def get_offers_collection():
+    """Initialize MongoDB client and return the offers collection."""
+    client = MongoClient(MONGO_URI)
+    db = client[DATABASE_NAME]
+    offers_collection = db[OFFERS_COLLECTION_NAME]
+    return offers_collection
+
 def insert_reward(collection, card_name, category, reward, full_text, extra_fields=None):
-    """Inserts a reward document into the MongoDB collection."""
+    """Inserts a reward document into the rewards collection."""
     document = {
         "card_name": card_name,
         "category": category,
         "reward": reward,
         "full_text": full_text,
     }
-    # Insert additional fields if available (e.g., limit, reward_type)
     if extra_fields:
         document.update(extra_fields)
     collection.insert_one(document)
+
+def insert_offer(collection, card_name, category, offer, full_text, extra_fields=None):
+    """Inserts an offer document (for statement credits) into the offers collection."""
+    document = {
+        "card_name": card_name,
+        "category": category,
+        "offer": offer,
+        "full_text": full_text,
+    }
+    if extra_fields:
+        document.update(extra_fields)
+    collection.insert_one(document)
+
+# ----- CATEGORY STANDARDIZATION -----
+def standardize_category(text):
+    """
+    Map the raw category text to one of the allowed final standardized categories.
+    Allowed categories:
+      Groceries
+      U.S. Online Retail Purchases
+      Gas
+      other purchases
+      Streaming Subscriptions
+      Transit
+      Food Services
+      Hotels
+      Capital One Hotels
+      wholesale Clubs
+      drugstore
+    """
+    if not text or text.strip() == "":
+        return "other purchases"
+    cat = text.lower().strip()
+    # Treat "all purchases" as non-specific → other purchases.
+    if cat in ["all purchases", "all"]:
+        return "other purchases"
+    # Capture both "grocery" and "groceries"
+    if "grocer" in cat:
+        return "Groceries"
+    if "online retail" in cat or ("online" in cat and "retail" in cat):
+        return "U.S. Online Retail Purchases"
+    if "gas" in cat or "fuel" in cat:
+        return "Gas"
+    if "streaming" in cat:
+        return "Streaming Subscriptions"
+    if "transit" in cat:
+        return "Transit"
+    # For food-related terms, include dining, restaurants, food ordering.
+    if "restaurant" in cat or "dine" in cat or ("food" in cat and "grocer" not in cat):
+        return "Food Services"
+    # Check for "capital one hotel" before generic "hotel" check
+    if "capital one hotel" in cat:
+        return "Capital One Hotels"
+    if "hotel" in cat:
+        return "Hotels"
+    if "wholesale" in cat or "club" in cat:
+        return "Wholesale Clubs"
+    if "drugstore" in cat or "pharmacy" in cat:
+        return "drugstore"
+    return "Other purchases"
 
 # ----- SCRAPING FUNCTION -----
 def get_raw_page_text(url):
@@ -71,10 +138,11 @@ def clean_reward_data(raw_text, card_name):
             re.IGNORECASE
         )
         for match in discover_pattern.finditer(cleaned_text):
+            rec_category = re.sub(r'\s+', ' ', match.group("category").strip())
             record = {
                 "reward_type": "discover_cashback_5",
-                "reward": "5% CASH BACK",
-                "category": re.sub(r'\s+', ' ', match.group("category").strip()),
+                "reward": "5%",
+                "category": standardize_category(rec_category),
                 "full_text": match.group(0).strip()
             }
             limit_match = limit_pattern.search(match.group(0))
@@ -90,8 +158,8 @@ def clean_reward_data(raw_text, card_name):
         for match in discover_pattern_1.finditer(cleaned_text):
             record = {
                 "reward_type": "discover_cashback_1",
-                "reward": "1% CASH BACK",
-                "category": "All Other Purchases",
+                "reward": "1%",
+                "category": standardize_category("All Purchases"),
                 "full_text": match.group(0).strip()
             }
             dedup_key = ("discover_cashback_1", record["reward"], record["category"])
@@ -105,8 +173,7 @@ def clean_reward_data(raw_text, card_name):
         freedom_patterns = [
             { 
                 'type': 'freedom',
-                'reward': None,
-                'category': "Dining at Restaurants",
+                'category': "Dining at Restaurants",  # will map to Food Services
                 'pattern': re.compile(
                     r"Earn\s+(?P<percent>\d+)%\s+on\s+dining\s+at\s+restaurants(?:,\s+including\s+takeout\s+and\s+eligible\s+delivery\s+services)?\.?",
                     re.IGNORECASE
@@ -114,8 +181,7 @@ def clean_reward_data(raw_text, card_name):
             },
             { 
                 'type': 'freedom',
-                'reward': None,
-                'category': "Drugstore Purchases",
+                'category': "Drugstore Purchases",  # should map to drugstore
                 'pattern': re.compile(
                     r"Earn\s+(?P<percent>\d+)%\s+on\s+drugstore\s+purchases\.?",
                     re.IGNORECASE
@@ -123,8 +189,7 @@ def clean_reward_data(raw_text, card_name):
             },
             { 
                 'type': 'freedom',
-                'reward': None,
-                'category': "Travel Purchased through Chase TravelSM",
+                'category': "Travel Purchased through Chase TravelSM",  # no matching allowed category; defaults to other purchases
                 'pattern': re.compile(
                     r"Earn\s+(?P<percent>\d+)%\s+on\s+travel\s+purchased\s+through\s+Chase\s+TravelSM\.?",
                     re.IGNORECASE
@@ -132,7 +197,6 @@ def clean_reward_data(raw_text, card_name):
             },
             { 
                 'type': 'freedom',
-                'reward': None,
                 'category': "All Other Purchases",
                 'pattern': re.compile(
                     r"Earn\s+(?P<percent>\d+(\.\d+)?)%\s+on\s+all\s+other\s+purchases\*?",
@@ -145,8 +209,8 @@ def clean_reward_data(raw_text, card_name):
                 percent = match.group("percent").strip()
                 record = {
                     "reward_type": "freedom",
-                    "reward": f"{percent}% CASH BACK",
-                    "category": rp['category'],
+                    "reward": f"{percent}%",
+                    "category": standardize_category(rp['category']),
                     "full_text": match.group(0).strip()
                 }
                 limit_match = limit_pattern.search(match.group(0))
@@ -163,7 +227,7 @@ def clean_reward_data(raw_text, card_name):
             { 
                 'type': 'cashback_savor',
                 'pattern': re.compile(
-                    r"Earn\s+unlimited\s+(?P<percent>\d+)%\s+cash\s+back\s+on\s+(?P<category>[^,]+)(?:,\s+plus\s+a\s+\$(?P<bonus>\d+)\s+cash\s+bonus)?",
+                    r"Earn\s+unlimited\s+(?P<percent>\d+)%\s+cash\s+back\s+on\s+(?P<category>[^,]+)",
                     re.IGNORECASE
                 )
             },
@@ -172,35 +236,39 @@ def clean_reward_data(raw_text, card_name):
                 'pattern': re.compile(
                     r"Earn\s+unlimited\s+(?P<percent>\d+)%\s+cash\s+back\s+on\s+hotels\s+and\s+rental\s+cars\s+booked\s+through\s+Capital\s+One\s+Travel",
                     re.IGNORECASE
-                )
+                ),
+                "category": "Capital One Hotels"
             },
             { 
                 'type': 'cashback_savor_grocery',
                 'pattern': re.compile(
-                    r"Earn\s+unlimited\s+(?P<percent>\d+)%\s+cash\s+back\s+at\s+grocery\s+stores,\s+on\s+dining,\s+entertainment\s+and\s+popular\s+streaming\s+services",
+                    r"Earn\s+unlimited\s+(?P<percent>\d+)%\s+cash\s+back\s+at\s+grocery\s+stores",
                     re.IGNORECASE
-                )
+                ),
+                "category": "Groceries"
             },
             { 
                 'type': 'cashback_savor_other',
                 'pattern': re.compile(
                     r"Earn\s+unlimited\s+(?P<percent>\d+)%\s+cash\s+back\s+on\s+all\s+other\s+purchases",
                     re.IGNORECASE
-                )
+                ),
+                "category": "other purchases"
             }
         ]
         for rp in reward_patterns:
             for match in rp['pattern'].finditer(cleaned_text):
                 reward_type = rp['type']
-                record = {'reward_type': reward_type, 'full_text': match.group(0).strip()}
                 percent = match.group("percent").strip()
-                record["reward"] = f"{percent}% CASH BACK"
-                if "category" in match.groupdict():
-                    record["category"] = re.sub(r'\s+', ' ', match.group("category").strip())
+                record = {'reward_type': reward_type, 'full_text': match.group(0).strip()}
+                record["reward"] = f"{percent}%"
+                if "category" in rp:
+                    record["category"] = standardize_category(rp["category"])
+                elif "category" in match.groupdict() and match.group("category"):
+                    recat = re.sub(r'\s+', ' ', match.group("category").strip())
+                    record["category"] = standardize_category(recat)
                 else:
-                    record["category"] = ""
-                if reward_type == "cashback_savor" and 'bonus' in match.groupdict() and match.group("bonus"):
-                    record["reward"] += f", plus ${match.group('bonus').strip()} cash bonus"
+                    record["category"] = "other purchases"
                 limit_match = limit_pattern.search(match.group(0))
                 record["limit"] = limit_match.group(1) if limit_match else None
                 dedup_key = (reward_type, record.get("reward"), record.get("category"))
@@ -209,7 +277,7 @@ def clean_reward_data(raw_text, card_name):
                     extracted_rewards.append(record)
         return extracted_rewards
 
-    # --- NEW BRANCH for CapitalOne Quicksilver Rewards ---
+    # --- Branch for CapitalOne Quicksilver Rewards ---
     if card_name == "CapitalOne Quicksilver Rewards":
         reward_patterns = [
             { 
@@ -225,8 +293,8 @@ def clean_reward_data(raw_text, card_name):
                 percent = match.group("percent").strip()
                 record = {
                     "reward_type": "cashback_quicksilver",
-                    "reward": f"{percent}% CASH BACK",
-                    "category": "All Purchases",
+                    "reward": f"{percent}%",
+                    "category": standardize_category("All Purchases"),
                     "full_text": match.group(0).strip()
                 }
                 limit_match = limit_pattern.search(match.group(0))
@@ -268,31 +336,30 @@ def clean_reward_data(raw_text, card_name):
             )
         }
     ]
-
     for rp in reward_patterns:
         for match in rp['pattern'].finditer(cleaned_text):
             reward_type = rp['type']
             record = {'reward_type': reward_type, 'full_text': match.group(0).strip()}
             if reward_type in ['cashback']:
                 percent = match.group("percent").strip()
-                record["reward"] = f"{percent}% CASH BACK"
+                record["reward"] = f"{percent}%"
                 if "category" in match.groupdict():
-                    record["category"] = re.sub(r'\s+', ' ', match.group("category").strip())
+                    recat = match.group("category").strip()
+                    record["category"] = standardize_category(recat)
                 else:
-                    record["category"] = ""
+                    record["category"] = "other purchases"
             elif reward_type == 'points':
                 multiplier = match.group("multiplier").strip()
                 record["reward"] = f"{multiplier} POINTS"
-                record["category"] = re.sub(r'\s+', ' ', match.group("category").strip())
+                record["category"] = standardize_category(match.group("category").strip())
             elif reward_type == 'welcome_points':
-                record["reward"] = f"Earn {match.group('points_count').strip()} Membership Rewards Points"
-                record["category"] = ""
+                record["reward"] = f"Earn {match.group('points_count').strip()} Points"
+                record["category"] = "other purchases"
             elif reward_type == 'credit':
                 record["reward"] = f"{match.group('credit').strip()} statement credit"
-                record["category"] = ""
+                record["category"] = standardize_category("")
             limit_match = limit_pattern.search(match.group(0))
             record["limit"] = limit_match.group(1) if limit_match else None
-
             if reward_type in ['cashback', 'points']:
                 dedup_key = (reward_type, record.get("reward"), record.get("category"))
             elif reward_type in ['welcome_points', 'credit']:
@@ -316,10 +383,13 @@ def main():
         "https://creditcards.chase.com/cash-back-credit-cards/freedom/unlimited?CELL=6TKV": "Chase Freedom Unlimited"
     }
     
-    collection = get_mongodb_collection()
-    # Clear out any previous data in the collection at the start of each run
-    collection.delete_many({})
+    rewards_collection = get_mongodb_collection()
+    offers_collection = get_offers_collection()
+    # Clear out any previous data in the collections at the start of each run
+    rewards_collection.delete_many({})
+    offers_collection.delete_many({})
     total_rewards = 0
+    total_offers = 0
     
     for url, card_name in card_mapping.items():
         print(f"Scraping raw text from {card_name}: {url}")
@@ -329,27 +399,32 @@ def main():
         
         if rewards:
             print(f"Rewards extracted from {card_name}:")
-            for reward in rewards:
-                category = reward.get("category", "") if reward.get("category", "") else "N/A"
-                reward_desc = reward.get("reward", "")
-                full_text = reward.get("full_text", "")
+            for record in rewards:
+                category = standardize_category(record.get("category", ""))
+                reward_value = record.get("reward", "")
+                full_text = record.get("full_text", "")
                 print(f" - Card: {card_name}")
                 print(f"   Category/Company: {category}")
-                print(f"   Reward: {reward_desc}")
-                if reward.get("limit"):
-                    print(f"   Spending Limit: ${reward.get('limit')}")
+                print(f"   Reward: {reward_value}")
+                if record.get("limit"):
+                    print(f"   Spending Limit: ${record.get('limit')}")
                 else:
                     print("   Spending Limit: Not specified")
                 print(f"   Full text: {full_text}")
                 print("-----")
-                # Merge the additional reward data (e.g., reward_type and limit) into extra_fields.
-                extra_fields = {k: v for k, v in reward.items() if k not in ["reward", "category", "full_text"]}
-                insert_reward(collection, card_name, category, reward_desc, full_text, extra_fields)
-                total_rewards += 1
+                extra_fields = {k: v for k, v in record.items() if k not in ["reward", "category", "full_text", "reward_type"]}
+                # If reward type is credit (statement credit), insert into offers collection.
+                if record["reward_type"] == "credit":
+                    insert_offer(offers_collection, card_name, category, reward_value, full_text, extra_fields)
+                    total_offers += 1
+                else:
+                    insert_reward(rewards_collection, card_name, category, reward_value, full_text, extra_fields)
+                    total_rewards += 1
         else:
             print(f"No reward data extracted from {card_name}. Please check the regex patterns.\n")
     
-        print(f"\nTotal rewards extracted and inserted into the MongoDB collection so far: {total_rewards}")
+        print(f"\nTotal rewards extracted and inserted so far: {total_rewards}")
+        print(f"Total offers extracted and inserted so far: {total_offers}\n")
     
 if __name__ == "__main__":
     while True:
