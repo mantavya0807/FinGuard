@@ -5,7 +5,7 @@ const apiUrl = "http://localhost:3000/findBestCard"; // Your backend API endpoin
 async function findBestCardForCategory(category) {
   try {
     // Send a request to your backend API to find the best card for the category
-      console.log("Finding best card for category:", category);
+    console.log("Finding best card for category:", category);
     const response = await fetch(
       `${apiUrl}?category=${category}`,
       {
@@ -22,11 +22,20 @@ async function findBestCardForCategory(category) {
 
     const data = await response.json();
     console.log("API response data:", data);
-    // Handle the response data and return the best card information
-    if (data.message) {
+    
+    // Return complete card data including cardName for future reference
+    if (data.cardName) {
+      return {
+        cardName: data.cardName,
+        category: data.category,
+        reward: data.reward,
+        message: data.message
+      };
+    } else if (data.message) {
       return { message: data.message };
     }
 
+    return null;
   } catch (error) {
     console.error("Error finding best card:", error);
     return { message: "An error occurred while finding the best card." };

@@ -135,6 +135,87 @@ app.post("/generateNudge", async (req, res) => {
   }
 });
 
+// API endpoint to get card details by name
+app.get("/getCardDetails", async (req, res) => {
+  const cardName = req.query.cardName;
+  if (!cardName) {
+    return res.status(400).json({ error: "Card name is required" });
+  }
+
+  try {
+    const client = await connectToMongoDB(userCardsUri);
+    const db = client.db(userCardsDbName);
+    const collection = db.collection(userCardsCollectionName);
+    
+    // Log the requested card name for debugging
+    console.log("Looking for card by name:", cardName);
+    
+    // Try exact match first (case-insensitive)
+    let card = await collection.findOne({ 
+      cardName: { $regex: new RegExp(`^${cardName}$`, 'i') } 
+    });
+    
+    // If not found, try partial match
+    if (!card) {
+      console.log("Exact match not found, trying partial match");
+      card = await collection.findOne({ 
+        cardName: { $regex: new RegExp(cardName.split(' ').join('.*'), 'i') } 
+      });
+    }
+    
+    // If still not found, try to get AMEX card if the name contains "AMEX"
+    if (!card && cardName.toUpperCase().includes("AMEX")) {
+      console.log("Trying to find any AMEX card");
+      card = await collection.findOne({ 
+        cardName: { $regex: /AMEX/i } 
+      });
+    }
+    
+    // Last resort - get any card with similar type
+    if (!card) {
+      const cardTypesToSearch = ["AMEX", "Visa", "Mastercard", "Discover"];
+      for (const type of cardTypesToSearch) {
+        if (cardName.toUpperCase().includes(type.toUpperCase())) {
+          console.log(`Trying to find any ${type} card`);
+          card = await collection.findOne({ 
+            cardType: { $regex: new RegExp(type, 'i') } 
+          });
+          if (card) break;
+        }
+      }
+    }
+    
+    await client.close();
+    
+    if (card) {
+      // Return card details needed for autofill
+      res.json({
+        success: true,
+        card: {
+          cardNumber: card.cardNumber,
+          cardName: card.cardName,
+          cardHolder: card.cardHolder,
+          expiryDate: card.expiryDate,
+          cardType: card.cardType,
+          cvv: card.cvv || "123", // Include a default CVV if not present in DB
+        }
+      });
+    } else {
+      res.status(404).json({ 
+        success: false, 
+        error: "Card not found" 
+      });
+    }
+  } catch (error) {
+    console.error("Error fetching card details:", error);
+    res.status(500).json({ 
+      success: false, 
+      error: "Failed to fetch card details",
+      details: error.message
+    });
+  }
+});
+
 // Health check endpoint
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });
