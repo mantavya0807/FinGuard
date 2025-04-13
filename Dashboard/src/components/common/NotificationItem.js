@@ -6,7 +6,7 @@ import {
   CheckCircleIcon, 
   InformationCircleIcon,
   BellIcon,
-  XIcon
+  XMarkIcon
 } from '@heroicons/react/24/solid';
 import { useNotifications } from '../../hooks/useNotifications';
 
@@ -73,7 +73,7 @@ const NotificationItem = ({ notification }) => {
               onClick={handleRemove}
               className="text-gray-400 hover:text-gray-600"
             >
-              <XIcon className="h-4 w-4" />
+              <XMarkIcon className="h-4 w-4" />
             </button>
           </div>
           

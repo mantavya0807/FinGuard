@@ -133,45 +133,84 @@ export const logout = async () => {
 // Get current user from Supabase
 export const getCurrentUser = async () => {
   try {
-    // Get current session
+    console.log("getCurrentUser: Starting");
+    
+    // First get the session
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
     
     if (sessionError) {
+      console.error("getCurrentUser: Session error", sessionError);
       throw new Error(sessionError.message);
     }
     
-    if (!sessionData.session) {
-      throw new Error('No active session found');
+    if (!sessionData?.session) {
+      console.error("getCurrentUser: No active session found");
+      throw new Error("No active session");
     }
     
-    // Get user data
+    // Get user data from Supabase auth
     const { data: userData, error: userError } = await supabase.auth.getUser();
     
     if (userError) {
+      console.error("getCurrentUser: User fetch error", userError);
       throw new Error(userError.message);
     }
     
-    // Get profile data
-    const { data: profileData, error: profileError } = await supabase
-      .from('profiles')
+    if (!userData?.user) {
+      console.error("getCurrentUser: No user data found");
+      throw new Error("No user data found");
+    }
+    
+    // Use a timeout to avoid hanging
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error("Profile fetch timeout")), 5000)
+    );
+    
+    // Get the user's profile from your profiles table (if applicable)
+    const profilePromise = supabase
+      .from('profiles')  // Adjust table name if needed
       .select('*')
       .eq('id', userData.user.id)
       .single();
     
-    if (profileError && profileError.code !== 'PGRST116') {
-      console.error('Error fetching user profile:', profileError);
+    // Race profile fetch against timeout
+    const { data: profile, error: profileError } = await Promise.race([
+      profilePromise,
+      timeoutPromise
+    ]);
+    
+    if (profileError) {
+      console.log("getCurrentUser: No profile or profile error:", profileError);
+      // Return just the auth data if profile fetch failed
+      return {
+        id: userData.user.id,
+        email: userData.user.email,
+        emailVerified: userData.user.email_confirmed_at != null,
+        lastSignIn: userData.user.last_sign_in_at,
+        createdAt: userData.user.created_at,
+        // Add fallback values for any profile fields you need
+        firstName: "",
+        lastName: "",
+      };
     }
     
+    console.log("getCurrentUser: Succeeded with profile:", profile?.id);
+    // Return combined auth and profile data
     return {
       id: userData.user.id,
       email: userData.user.email,
-      firstName: profileData?.first_name || 'User',
-      lastName: profileData?.last_name || '',
-      accountCreated: userData.user.created_at,
-      profileImage: profileData?.profile_image || null
+      emailVerified: userData.user.email_confirmed_at != null,
+      // Include profile fields
+      firstName: profile?.first_name || "",
+      lastName: profile?.last_name || "",
+      // Other profile fields
+      ...profile,
+      // Auth metadata
+      lastSignIn: userData.user.last_sign_in_at,
+      createdAt: userData.user.created_at
     };
   } catch (error) {
-    console.error('Get current user error:', error);
+    console.error("getCurrentUser: Error:", error.message);
     throw error;
   }
 };
