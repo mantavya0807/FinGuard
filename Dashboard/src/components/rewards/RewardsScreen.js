@@ -1,335 +1,555 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { GiftIcon, StarIcon, TrophyIcon, ArrowRightIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
+import { getCardsWithRewards, getBestRewardsByCategory, getOffers } from '../../services/api/rewardsApi';
+import { 
+  GiftIcon, 
+  SparklesIcon, 
+  ShoppingBagIcon, 
+  BuildingOfficeIcon, 
+  GlobeAmericasIcon, 
+  CreditCardIcon,
+  TagIcon,
+  FireIcon,
+  BanknotesIcon,
+  ArrowTrendingUpIcon,
+  CheckCircleIcon
+} from '@heroicons/react/24/outline';
+import LoadingSpinner from '../common/LoadingSpinner';
 
 const RewardsScreen = () => {
-  const [selectedTab, setSelectedTab] = useState('available');
-  
-  // Sample rewards data
-  const availableRewards = [
-    {
-      id: 'reward_1',
-      title: '5% Cashback on Dining',
-      description: 'Get 5% cashback at restaurants and dining establishments',
-      value: '$25',
-      expires: 'Dec 31, 2025',
-      category: 'cashback',
-      card: 'Capital One Savor',
-      logo: '/images/capital-one.png'
-    },
-    {
-      id: 'reward_2',
-      title: 'Travel Credit',
-      description: '$100 statement credit for hotel or airline bookings',
-      value: '$100',
-      expires: 'Mar 15, 2026',
-      category: 'travel',
-      card: 'Chase Sapphire Reserve',
-      logo: '/images/chase.png'
-    },
-    {
-      id: 'reward_3',
-      title: 'Amazon Prime Membership',
-      description: 'Free Amazon Prime membership for 1 year',
-      value: '$139',
-      expires: 'Jun 30, 2025',
-      category: 'membership',
-      card: 'Amazon Prime Visa',
-      logo: '/images/amazon.png'
-    }
+  const navigate = useNavigate();
+  const [cards, setCards] = useState([]);
+  const [offers, setOffers] = useState([]);
+  const [bestRewards, setBestRewards] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [activeCategory, setActiveCategory] = useState('Groceries');
+  const [activeTab, setActiveTab] = useState('rewards'); // 'rewards' or 'offers'
+
+  // Common reward categories
+  const categories = [
+    { id: 'groceries', name: 'Groceries', icon: <ShoppingBagIcon className="h-5 w-5" /> },
+    { id: 'dining', name: 'Dining', icon: <BuildingOfficeIcon className="h-5 w-5" /> },
+    { id: 'travel', name: 'Travel', icon: <GlobeAmericasIcon className="h-5 w-5" /> },
+    { id: 'gas', name: 'Gas', icon: <BuildingOfficeIcon className="h-5 w-5" /> },
+    { id: 'other', name: 'Other purchases', icon: <CreditCardIcon className="h-5 w-5" /> }
   ];
-  
-  const usedRewards = [
-    {
-      id: 'reward_4',
-      title: 'Annual Travel Credit',
-      description: '$300 statement credit for travel purchases',
-      value: '$300',
-      usedDate: 'Feb 15, 2025',
-      category: 'travel',
-      card: 'Chase Sapphire Reserve',
-      logo: '/images/chase.png'
-    },
-    {
-      id: 'reward_5',
-      title: 'Streaming Credit',
-      description: '$20 monthly credit for streaming services',
-      value: '$20',
-      usedDate: 'Jan 5, 2025',
-      category: 'entertainment',
-      card: 'American Express Platinum',
-      logo: '/images/amex.png'
-    }
-  ];
-  
-  // Total rewards value
-  const totalAvailableValue = availableRewards.reduce((total, reward) => {
-    const value = parseFloat(reward.value.replace(/[^0-9.]/g, ''));
-    return total + value;
-  }, 0);
-  
-  const totalUsedValue = usedRewards.reduce((total, reward) => {
-    const value = parseFloat(reward.value.replace(/[^0-9.]/g, ''));
-    return total + value;
-  }, 0);
-  
-  // Animation variants
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { 
-      opacity: 1,
-      transition: { staggerChildren: 0.1 }
-    }
-  };
-  
-  const cardVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: { 
-      y: 0, 
-      opacity: 1,
-      transition: { type: "spring", stiffness: 300, damping: 20 }
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        // Fetch cards with rewards
+        const cardsData = await getCardsWithRewards();
+        setCards(cardsData);
+        
+        // Fetch all offers
+        const offersData = await getOffers();
+        setOffers(offersData);
+        
+        // Fetch best rewards for active category
+        const bestRewardsData = await getBestRewardsByCategory(activeCategory);
+        setBestRewards(prevState => ({
+          ...prevState,
+          [activeCategory]: bestRewardsData
+        }));
+      } catch (err) {
+        console.error('Error fetching rewards data:', err);
+        setError('Failed to load rewards data. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, [activeCategory]);
+
+  const handleCategoryChange = async (category) => {
+    setActiveCategory(category);
+    
+    // Check if we already have best rewards for this category
+    if (!bestRewards[category]) {
+      try {
+        const bestRewardsData = await getBestRewardsByCategory(category);
+        setBestRewards(prevState => ({
+          ...prevState,
+          [category]: bestRewardsData
+        }));
+      } catch (err) {
+        console.error(`Error fetching best rewards for ${category}:`, err);
+      }
     }
   };
-  
-  // Get category icon
-  const getCategoryIcon = (category) => {
-    switch (category) {
-      case 'cashback':
-        return <CurrencyDollarIcon className="h-6 w-6 text-green-500" />;
-      case 'travel':
-        return <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>;
-      case 'entertainment':
-        return <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
-        </svg>;
-      case 'membership':
-        return <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-        </svg>;
-      default:
-        return <GiftIcon className="h-6 w-6 text-primary-500" />;
-    }
+
+  const handleCardClick = (cardName) => {
+    navigate(`/rewards/${cardName.replace(/\s+/g, '-').toLowerCase()}`);
   };
-  
+
+  // Function to get color based on reward percentage
+  const getRewardColor = (rewardStr) => {
+    const percent = parseFloat(rewardStr.replace('%', ''));
+    if (percent >= 5) return 'text-success-600 dark:text-success-400';
+    if (percent >= 3) return 'text-primary-600 dark:text-primary-400';
+    return 'text-gray-700 dark:text-gray-300';
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <LoadingSpinner size="h-12 w-12" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 text-center">
+        <div className="bg-danger-50 text-danger-700 p-4 rounded-lg dark:bg-danger-900/30 dark:text-danger-400">
+          <p>{error}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
-      className="max-w-7xl mx-auto"
+      className="max-w-7xl mx-auto p-4"
     >
-      <div className="bg-gradient-to-r from-primary-600 to-purple-600 rounded-xl text-white p-6 mb-6">
-        <h1 className="text-2xl font-bold mb-2">Rewards Center</h1>
-        <p className="text-primary-100">
-          Manage your rewards and maximize the benefits from your cards
+      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl text-white p-6 mb-6">
+        <h1 className="text-2xl font-bold mb-2">Credit Card Rewards & Offers</h1>
+        <p className="text-purple-100">
+          Maximize your benefits with our reward optimization tools
         </p>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <motion.div 
-          className="bg-white rounded-xl shadow-md p-6 dark:bg-dark-800 border border-gray-100 dark:border-dark-700"
-          whileHover={{ y: -5 }}
-          transition={{ duration: 0.2 }}
-        >
-          <div className="flex items-center">
-            <div className="flex-shrink-0 p-3 rounded-lg bg-primary-100 dark:bg-primary-900/30">
-              <GiftIcon className="h-8 w-8 text-primary-600 dark:text-primary-400" />
-            </div>
-            <div className="ml-4">
-              <h2 className="text-lg font-medium text-gray-900 dark:text-white">Available Rewards</h2>
-              <p className="text-3xl font-bold text-primary-600 dark:text-primary-400">${totalAvailableValue}</p>
-            </div>
-          </div>
-        </motion.div>
         
-        <motion.div 
-          className="bg-white rounded-xl shadow-md p-6 dark:bg-dark-800 border border-gray-100 dark:border-dark-700"
-          whileHover={{ y: -5 }}
-          transition={{ duration: 0.2 }}
-        >
-          <div className="flex items-center">
-            <div className="flex-shrink-0 p-3 rounded-lg bg-green-100 dark:bg-green-900/30">
-              <StarIcon className="h-8 w-8 text-green-600 dark:text-green-400" />
-            </div>
-            <div className="ml-4">
-              <h2 className="text-lg font-medium text-gray-900 dark:text-white">Points Earned</h2>
-              <p className="text-3xl font-bold text-green-600 dark:text-green-400">12,450</p>
-            </div>
-          </div>
-        </motion.div>
-        
-        <motion.div 
-          className="bg-white rounded-xl shadow-md p-6 dark:bg-dark-800 border border-gray-100 dark:border-dark-700"
-          whileHover={{ y: -5 }}
-          transition={{ duration: 0.2 }}
-        >
-          <div className="flex items-center">
-            <div className="flex-shrink-0 p-3 rounded-lg bg-yellow-100 dark:bg-yellow-900/30">
-              <TrophyIcon className="h-8 w-8 text-yellow-600 dark:text-yellow-400" />
-            </div>
-            <div className="ml-4">
-              <h2 className="text-lg font-medium text-gray-900 dark:text-white">Redeemed Value</h2>
-              <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">${totalUsedValue}</p>
-            </div>
-          </div>
-        </motion.div>
-      </div>
-      
-      <div className="bg-white rounded-xl shadow-md overflow-hidden dark:bg-dark-800 border border-gray-100 dark:border-dark-700">
-        <div className="border-b border-gray-200 dark:border-dark-700">
-          <nav className="flex -mb-px">
-            <button
-              onClick={() => setSelectedTab('available')}
-              className={`py-4 px-6 font-medium text-sm border-b-2 ${
-                selectedTab === 'available'
-                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300 dark:hover:border-gray-600'
-              }`}
-            >
-              Available Rewards
-            </button>
-            <button
-              onClick={() => setSelectedTab('used')}
-              className={`py-4 px-6 font-medium text-sm border-b-2 ${
-                selectedTab === 'used'
-                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300 dark:hover:border-gray-600'
-              }`}
-            >
-              Redeemed Rewards
-            </button>
-          </nav>
-        </div>
-        
-        <div className="p-6">
-          {selectedTab === 'available' ? (
-            availableRewards.length > 0 ? (
-              <motion.div 
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-                className="grid grid-cols-1 gap-4"
-              >
-                {availableRewards.map(reward => (
-                  <motion.div 
-                    key={reward.id}
-                    variants={cardVariants}
-                    className="bg-gray-50 rounded-lg p-4 border border-gray-200 dark:bg-dark-700 dark:border-dark-600"
-                    whileHover={{ scale: 1.01 }}
-                  >
-                    <div className="flex items-start">
-                      <div className="bg-white p-2 rounded-lg shadow-sm dark:bg-dark-800">
-                        {getCategoryIcon(reward.category)}
-                      </div>
-                      <div className="ml-4 flex-1">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h3 className="font-medium text-gray-900 dark:text-white">{reward.title}</h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{reward.description}</p>
-                          </div>
-                          <span className="text-lg font-bold text-primary-600 dark:text-primary-400">{reward.value}</span>
-                        </div>
-                        <div className="mt-2 flex items-center justify-between">
-                          <div className="flex items-center">
-                            <div className="h-6 w-6 bg-gray-200 rounded-full mr-2 dark:bg-dark-600">
-                              {/* Card logo would go here, using placeholder */}
-                              <div className="h-6 w-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold">
-                                {reward.card.charAt(0)}
-                              </div>
-                            </div>
-                            <span className="text-xs text-gray-600 dark:text-gray-300">{reward.card}</span>
-                          </div>
-                          <div className="flex items-center space-x-4">
-                            <span className="text-xs text-gray-500 dark:text-gray-400">Expires: {reward.expires}</span>
-                            <Link 
-                              to={`/rewards/${reward.id}`}
-                              className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 flex items-center text-sm font-medium"
-                            >
-                              Details <ArrowRightIcon className="h-4 w-4 ml-1" />
-                            </Link>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </motion.div>
-            ) : (
-              <div className="text-center py-10">
-                <GiftIcon className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No rewards available</h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  You don't have any available rewards at the moment.
-                </p>
+        {/* Stats Bar */}
+        <div className="grid grid-cols-3 gap-4 mt-6">
+          <div className="bg-white/10 rounded-lg p-3 backdrop-blur-sm">
+            <div className="flex items-center">
+              <SparklesIcon className="h-8 w-8 text-yellow-300 mr-3" />
+              <div>
+                <p className="text-sm text-indigo-100">Total Rewards Earned</p>
+                <p className="text-xl font-bold text-white">$432.50</p>
               </div>
-            )
-          ) : (
-            usedRewards.length > 0 ? (
-              <motion.div 
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-                className="grid grid-cols-1 gap-4"
-              >
-                {usedRewards.map(reward => (
-                  <motion.div 
-                    key={reward.id}
-                    variants={cardVariants}
-                    className="bg-gray-50 rounded-lg p-4 border border-gray-200 dark:bg-dark-700 dark:border-dark-600"
-                  >
-                    <div className="flex items-start">
-                      <div className="bg-white p-2 rounded-lg shadow-sm dark:bg-dark-800">
-                        {getCategoryIcon(reward.category)}
-                      </div>
-                      <div className="ml-4 flex-1">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h3 className="font-medium text-gray-900 dark:text-white">{reward.title}</h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{reward.description}</p>
-                          </div>
-                          <span className="text-lg font-bold text-gray-600 dark:text-gray-400">{reward.value}</span>
-                        </div>
-                        <div className="mt-2 flex items-center justify-between">
-                          <div className="flex items-center">
-                            <div className="h-6 w-6 bg-gray-200 rounded-full mr-2 dark:bg-dark-600">
-                              {/* Card logo would go here, using placeholder */}
-                              <div className="h-6 w-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold">
-                                {reward.card.charAt(0)}
-                              </div>
-                            </div>
-                            <span className="text-xs text-gray-600 dark:text-gray-300">{reward.card}</span>
-                          </div>
-                          <div className="flex items-center space-x-4">
-                            <span className="text-xs text-gray-500 dark:text-gray-400">Used on: {reward.usedDate}</span>
-                            <Link 
-                              to={`/rewards/${reward.id}`}
-                              className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 flex items-center text-sm font-medium"
-                            >
-                              Details <ArrowRightIcon className="h-4 w-4 ml-1" />
-                            </Link>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </motion.div>
-            ) : (
-              <div className="text-center py-10">
-                <GiftIcon className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No redeemed rewards</h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  You haven't redeemed any rewards yet.
-                </p>
+            </div>
+          </div>
+          <div className="bg-white/10 rounded-lg p-3 backdrop-blur-sm">
+            <div className="flex items-center">
+              <BanknotesIcon className="h-8 w-8 text-green-300 mr-3" />
+              <div>
+                <p className="text-sm text-indigo-100">Active Cards</p>
+                <p className="text-xl font-bold text-white">{cards.length}</p>
               </div>
-            )
-          )}
+            </div>
+          </div>
+          <div className="bg-white/10 rounded-lg p-3 backdrop-blur-sm">
+            <div className="flex items-center">
+              <ArrowTrendingUpIcon className="h-8 w-8 text-pink-300 mr-3" />
+              <div>
+                <p className="text-sm text-indigo-100">Available Offers</p>
+                <p className="text-xl font-bold text-white">{offers.length}</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+      
+      {/* Tabs */}
+      <div className="mb-6 border-b border-gray-200 dark:border-dark-700">
+        <nav className="flex space-x-8">
+          <button
+            className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+              activeTab === 'rewards'
+                ? 'border-primary-500 text-primary-600 dark:border-primary-400 dark:text-primary-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+            }`}
+            onClick={() => setActiveTab('rewards')}
+          >
+            <div className="flex items-center">
+              <SparklesIcon className="h-5 w-5 mr-2" />
+              <span>Rewards</span>
+            </div>
+          </button>
+          <button
+            className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+              activeTab === 'offers'
+                ? 'border-primary-500 text-primary-600 dark:border-primary-400 dark:text-primary-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+            }`}
+            onClick={() => setActiveTab('offers')}
+          >
+            <div className="flex items-center">
+              <TagIcon className="h-5 w-5 mr-2" />
+              <span>Special Offers</span>
+            </div>
+          </button>
+          <button
+            className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+              activeTab === 'optimizer'
+                ? 'border-primary-500 text-primary-600 dark:border-primary-400 dark:text-primary-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+            }`}
+            onClick={() => setActiveTab('optimizer')}
+          >
+            <div className="flex items-center">
+              <FireIcon className="h-5 w-5 mr-2" />
+              <span>Reward Optimizer</span>
+            </div>
+          </button>
+        </nav>
+      </div>
+      
+      {/* Rewards Tab Content */}
+      {activeTab === 'rewards' && (
+        <div className="bg-white rounded-xl shadow-md overflow-hidden dark:bg-dark-800 border border-gray-100 dark:border-dark-700 mb-6">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-dark-700">
+            <h2 className="text-lg font-medium text-gray-900 dark:text-white flex items-center">
+              <CreditCardIcon className="h-5 w-5 mr-2 text-primary-600" />
+              Your Reward Cards
+            </h2>
+          </div>
+          
+          <div className="divide-y divide-gray-200 dark:divide-dark-700">
+            {cards.length > 0 ? (
+              cards.map((card, index) => (
+                <motion.div 
+                  key={index}
+                  className="p-6 hover:bg-gray-50 dark:hover:bg-dark-700 cursor-pointer"
+                  onClick={() => handleCardClick(card.name)}
+                  whileHover={{ x: 5 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                >
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+                    <div className="mb-4 md:mb-0">
+                      <h3 className="text-lg font-medium text-gray-900 dark:text-white">{card.name}</h3>
+                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                        {card.rewards.map((reward, idx) => (
+                          <p key={idx} className="text-sm text-gray-600 dark:text-gray-400 flex items-center">
+                            <span className="h-2 w-2 rounded-full bg-primary-500 mr-2 flex-shrink-0"></span>
+                            <span className="capitalize mr-1">{reward.category}:</span>
+                            <span className={`font-medium ${getRewardColor(reward.reward)}`}>
+                              {reward.reward} {reward.limit && `(up to ${reward.limit})`}
+                            </span>
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <button className="btn btn-outline px-4 py-2 text-sm">
+                        View Details
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              ))
+            ) : (
+              <div className="p-10 text-center">
+                <GiftIcon className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No reward cards</h3>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  Get started by adding your credit cards to see their rewards.
+                </p>
+                <div className="mt-6">
+                  <button
+                    className="btn btn-primary px-4 py-2"
+                    onClick={() => navigate('/cards/add')}
+                  >
+                    Add a Card
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Offers Tab Content */}
+      {activeTab === 'offers' && (
+        <div>
+          <div className="mb-6">
+            <h2 className="text-xl font-medium text-gray-900 mb-6 dark:text-white">Special Card Offers</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200 dark:bg-dark-800 dark:border-dark-700">
+                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="text-lg font-medium">Chase Sapphire Reserve</h3>
+                      <p className="mt-1 text-blue-100">Premium travel rewards card</p>
+                    </div>
+                    <span className="bg-yellow-300 text-blue-800 text-xs font-bold px-2 py-1 rounded">FEATURED</span>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white mb-2">60,000 Points</p>
+                  <p className="text-gray-600 dark:text-gray-400 mb-4">
+                    After spending $4,000 in the first 3 months
+                  </p>
+                  <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mb-4">
+                    <CheckCircleIcon className="h-4 w-4 text-success-500 mr-1" />
+                    <span>No foreign transaction fees</span>
+                  </div>
+                  <button className="btn btn-primary w-full">Learn More</button>
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200 dark:bg-dark-800 dark:border-dark-700">
+                <div className="bg-gradient-to-r from-green-600 to-teal-600 p-6 text-white">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="text-lg font-medium">AMEX Blue Cash Preferred</h3>
+                      <p className="mt-1 text-green-100">6% cash back on groceries</p>
+                    </div>
+                    <span className="bg-white text-green-800 text-xs font-bold px-2 py-1 rounded">POPULAR</span>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white mb-2">$350 Cashback</p>
+                  <p className="text-gray-600 dark:text-gray-400 mb-4">
+                    After spending $3,000 in the first 6 months
+                  </p>
+                  <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mb-4">
+                    <CheckCircleIcon className="h-4 w-4 text-success-500 mr-1" />
+                    <span>No annual fee first year</span>
+                  </div>
+                  <button className="btn btn-primary w-full">Learn More</button>
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200 dark:bg-dark-800 dark:border-dark-700">
+                <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-6 text-white">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="text-lg font-medium">Capital One Venture X</h3>
+                      <p className="mt-1 text-purple-100">Premium travel rewards card</p>
+                    </div>
+                    <span className="bg-white text-purple-800 text-xs font-bold px-2 py-1 rounded">NEW</span>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white mb-2">75,000 Miles</p>
+                  <p className="text-gray-600 dark:text-gray-400 mb-4">
+                    After spending $4,000 in the first 3 months
+                  </p>
+                  <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mb-4">
+                    <CheckCircleIcon className="h-4 w-4 text-success-500 mr-1" />
+                    <span>10x miles on hotels and rental cars</span>
+                  </div>
+                  <button className="btn btn-primary w-full">Learn More</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-xl shadow-md overflow-hidden dark:bg-dark-800 border border-gray-100 dark:border-dark-700 mb-6">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-dark-700">
+              <h2 className="text-lg font-medium text-gray-900 dark:text-white flex items-center">
+                <TagIcon className="h-5 w-5 mr-2 text-primary-600" />
+                All Offers
+              </h2>
+            </div>
+            
+            <div className="divide-y divide-gray-200 dark:divide-dark-700">
+              {offers.length > 0 ? (
+                offers.map((offer, index) => (
+                  <div key={index} className="p-6 hover:bg-gray-50 dark:hover:bg-dark-700">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+                      <div className="mb-4 md:mb-0">
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-white">{offer.card_name}</h3>
+                        <p className="text-primary-600 dark:text-primary-400 font-medium">{offer.offer}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{offer.full_text}</p>
+                        {offer.category && (
+                          <div className="mt-2">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                              {offer.category}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center">
+                        <button className="btn btn-outline px-4 py-2 text-sm">
+                          Apply Now
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="p-10 text-center">
+                  <TagIcon className="mx-auto h-12 w-12 text-gray-400" />
+                  <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No offers available</h3>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Check back later for new special offers.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Optimizer Tab Content */}
+      {activeTab === 'optimizer' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 bg-white rounded-xl shadow-md overflow-hidden dark:bg-dark-800 border border-gray-100 dark:border-dark-700 mb-6">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-dark-700">
+              <h2 className="text-lg font-medium text-gray-900 dark:text-white flex items-center">
+                <FireIcon className="h-5 w-5 mr-2 text-primary-600" />
+                Reward Optimization Dashboard
+              </h2>
+            </div>
+            <div className="p-6">
+              <div className="mb-6">
+                <h3 className="text-md font-medium text-gray-800 dark:text-white mb-3">Select spending category:</h3>
+                <div className="flex flex-wrap gap-2">
+                  {categories.map((category) => (
+                    <button
+                      key={category.id}
+                      className={`flex items-center px-3 py-2 rounded-full text-sm font-medium ${
+                        activeCategory === category.name
+                          ? 'bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400'
+                          : 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600'
+                      }`}
+                      onClick={() => handleCategoryChange(category.name)}
+                    >
+                      <span className="mr-1.5">{category.icon}</span>
+                      {category.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <div>
+                <h3 className="text-md font-medium text-gray-800 dark:text-white mb-3">
+                  Best cards for {activeCategory}:
+                </h3>
+                
+                {bestRewards[activeCategory] && bestRewards[activeCategory].length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {bestRewards[activeCategory].slice(0, 4).map((reward, index) => (
+                      <div 
+                        key={index}
+                        className={`p-4 rounded-lg border ${
+                          index === 0 
+                            ? 'border-yellow-200 bg-yellow-50 dark:bg-yellow-900/20 dark:border-yellow-900/50' 
+                            : index === 1
+                              ? 'border-gray-300 bg-gray-50 dark:bg-gray-900/20 dark:border-gray-800'
+                              : 'border-gray-200 dark:border-dark-600'
+                        }`}
+                      >
+                        <div className="flex items-start">
+                          {index === 0 ? (
+                            <div className="bg-yellow-200 p-2 rounded-full text-yellow-700 dark:bg-yellow-700 dark:text-yellow-200 mr-3">
+                              <div className="relative">
+                                <SparklesIcon className="h-5 w-5" />
+                                <span className="absolute -top-1 -right-1 bg-yellow-500 text-white text-xs w-4 h-4 flex items-center justify-center rounded-full">1</span>
+                              </div>
+                            </div>
+                          ) : index === 1 ? (
+                            <div className="bg-gray-200 p-2 rounded-full text-gray-700 dark:bg-gray-700 dark:text-gray-200 mr-3">
+                              <div className="relative">
+                                <SparklesIcon className="h-5 w-5" />
+                                <span className="absolute -top-1 -right-1 bg-gray-500 text-white text-xs w-4 h-4 flex items-center justify-center rounded-full">2</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="w-9 mr-3"></div> // Spacer for alignment
+                          )}
+                          <div>
+                            <h4 className="font-medium text-gray-900 dark:text-white">
+                              {reward.card_name}
+                            </h4>
+                            <p className={`text-lg font-bold ${index === 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                              {reward.reward}
+                            </p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                              {reward.full_text || `on ${reward.category}`}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center p-4 bg-gray-50 rounded-lg dark:bg-dark-700">
+                    <p className="text-gray-500 dark:text-gray-400">
+                      No rewards data available for this category.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          <div>
+            <div className="bg-white rounded-xl shadow-md overflow-hidden dark:bg-dark-800 border border-gray-100 dark:border-dark-700 mb-6">
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-dark-700">
+                <h2 className="text-lg font-medium text-gray-900 dark:text-white flex items-center">
+                  <SparklesIcon className="h-5 w-5 mr-2 text-primary-600" />
+                  Your Personal Stats
+                </h2>
+              </div>
+              
+              <div className="p-6">
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Most used card</p>
+                    <p className="text-lg font-medium text-gray-900 dark:text-white">
+                      {cards.length > 0 ? cards[0].name : 'No cards yet'}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Top spending category</p>
+                    <p className="text-lg font-medium text-gray-900 dark:text-white">Groceries</p>
+                  </div>
+                  
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Potential monthly rewards</p>
+                    <p className="text-lg font-medium text-green-600 dark:text-green-400">$42.75</p>
+                  </div>
+                  
+                  <div className="pt-4 border-t border-gray-200 dark:border-dark-700">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">Optimization score</p>
+                    <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-dark-700">
+                      <div className="bg-green-600 h-2.5 rounded-full w-3/4"></div>
+                    </div>
+                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 flex items-center">
+                      <CheckCircleIcon className="h-4 w-4 text-green-500 mr-1" />
+                      <span>75% - Good</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl shadow-md overflow-hidden text-white">
+              <div className="p-6">
+                <h2 className="text-lg font-medium mb-4 flex items-center">
+                  <SparklesIcon className="h-5 w-5 mr-2" />
+                  Did You Know?
+                </h2>
+                
+                <p className="mb-4 text-indigo-100">
+                  Using the right card for each purchase could earn you up to 5x more rewards.
+                </p>
+                
+                <button
+                  className="bg-white text-indigo-700 rounded-lg px-4 py-2 text-sm font-medium hover:bg-indigo-50"
+                  onClick={() => navigate('/rewards/history')}
+                >
+                  View Rewards History
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 };

@@ -1,369 +1,335 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { PlusIcon, CreditCardIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import { useCards } from '../../hooks/useCards';
-import Button from '../common/Button';
-import Card from '../common/Card';
-
-// Import icons
-import { 
-  PlusIcon, 
-  CreditCardIcon, 
-  EllipsisVerticalIcon,
-  ChevronRightIcon,
-  TrashIcon,
-  PencilIcon,
-  LockClosedIcon,
-  StarIcon,
-  ExclamationCircleIcon
-} from '@heroicons/react/24/outline';
-import { Menu, Transition } from '@headlessui/react';
-
-// Import card utility functions
-import { maskCardNumber } from '../../services/constants/cardTypes';
+import api from '../../services/api/index';
+import LoadingSpinner from '../common/LoadingSpinner';
 
 const CardManagement = () => {
-  const { cards, loading, error, deleteCard } = useCards();
-  const [showAddCardModal, setShowAddCardModal] = useState(false);
+  const navigate = useNavigate();
+  const { cards, loading: cardsLoading, error: cardsError, refreshCards } = useCards();
+  const [cardTransactions, setCardTransactions] = useState({});
+  const [transactionsLoading, setTransactionsLoading] = useState({});
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Fetch transactions for each card
+  useEffect(() => {
+    const fetchCardTransactions = async () => {
+      if (!cards || cards.length === 0) return;
+      
+      const loadingStates = {};
+      cards.forEach(card => {
+        loadingStates[card.id] = true;
+      });
+      setTransactionsLoading(loadingStates);
+      
+      try {
+        // For each card, fetch the most recent transactions
+        const transactionPromises = cards.map(async (card) => {
+          try {
+            // Get transactions for the last 30 days
+            const endDate = new Date();
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - 30);
+            
+            const transactions = await api.get(`/transactions?cardId=${card.id}&startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}&limit=5`);
+            
+            return { cardId: card.id, transactions: transactions || [] };
+          } catch (err) {
+            console.error(`Error fetching transactions for card ${card.id}:`, err);
+            return { cardId: card.id, transactions: [] };
+          } finally {
+            setTransactionsLoading(prev => ({
+              ...prev,
+              [card.id]: false
+            }));
+          }
+        });
+        
+        const results = await Promise.all(transactionPromises);
+        
+        // Convert to object with cardId as key
+        const transactionsMap = {};
+        results.forEach(result => {
+          transactionsMap[result.cardId] = result.transactions;
+        });
+        
+        setCardTransactions(transactionsMap);
+      } catch (err) {
+        console.error('Error fetching card transactions:', err);
+      } finally {
+        setRefreshing(false);
+      }
+    };
+    
+    fetchCardTransactions();
+  }, [cards]);
   
-  // Handle add new card
-  const handleAddCard = () => {
-    setShowAddCardModal(true);
+  const handleRefresh = () => {
+    setRefreshing(true);
+    refreshCards();
+  };
+
+  // Format currency
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount);
   };
   
-  // Handle delete card
-  const handleDeleteCard = async (cardId) => {
-    if (window.confirm('Are you sure you want to remove this card?')) {
-      try {
-        await deleteCard(cardId);
-      } catch (err) {
-        console.error('Error deleting card:', err);
-      }
+  // Get the card utilization percentage
+  const getUtilizationPercentage = (card) => {
+    if (!card.creditLimit) return 0;
+    return (card.currentMonthSpending / card.creditLimit) * 100;
+  };
+  
+  // Get color class for utilization bar
+  const getUtilizationColorClass = (percentage) => {
+    if (percentage >= 80) return 'bg-red-500';
+    if (percentage >= 50) return 'bg-yellow-500';
+    return 'bg-green-500';
+  };
+  
+  // Get total spent on a card in the last 30 days
+  const getRecentSpending = (cardId) => {
+    if (!cardTransactions[cardId]) return 0;
+    
+    return cardTransactions[cardId]
+      .filter(tx => tx.amount < 0) // Only purchases
+      .reduce((total, tx) => total + Math.abs(tx.amount), 0);
+  };
+  
+  // Get total rewards earned on a card in the last 30 days
+  const getRecentRewards = (cardId) => {
+    if (!cardTransactions[cardId]) return 0;
+    
+    return cardTransactions[cardId]
+      .reduce((total, tx) => total + (tx.rewardsEarned || 0), 0);
+  };
+  
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { 
+      opacity: 1,
+      transition: { staggerChildren: 0.1 }
     }
   };
   
-  // Render card indicator
-  const renderCardTypeIndicator = (cardType) => {
-    const indicators = {
-      'VISA': (
-        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800">
-          VISA
-        </span>
-      ),
-      'MASTERCARD': (
-        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-800">
-          MASTERCARD
-        </span>
-      ),
-      'AMEX': (
-        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800">
-          AMEX
-        </span>
-      ),
-      'DISCOVER': (
-        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-orange-100 text-orange-800">
-          DISCOVER
-        </span>
-      )
-    };
-    
-    return indicators[cardType] || (
-      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-800">
-        CARD
-      </span>
-    );
+  const cardVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { 
+      opacity: 1, 
+      y: 0,
+      transition: { type: "spring", stiffness: 300, damping: 30 }
+    },
+    hover: {
+      y: -10,
+      boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+      transition: { type: "spring", stiffness: 300, damping: 30 }
+    },
+    tap: {
+      y: -5,
+      boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+      transition: { type: "spring", stiffness: 500, damping: 30 }
+    }
   };
-  
-  // Render a credit card
-  const renderCreditCard = (card) => {
-    // Determine background color style for card
-    const getCardBgStyle = () => {
-      if (card.color) {
-        return { backgroundColor: card.color };
-      }
-      
-      // Default colors based on card type
-      const cardColors = {
-        'VISA': 'bg-gradient-to-r from-blue-900 to-blue-700',
-        'MASTERCARD': 'bg-gradient-to-r from-red-800 to-red-600',
-        'AMEX': 'bg-gradient-to-r from-green-800 to-green-600',
-        'DISCOVER': 'bg-gradient-to-r from-orange-700 to-yellow-500'
-      };
-      
-      return { className: cardColors[card.cardType] || 'bg-gradient-to-r from-gray-800 to-gray-600' };
-    };
-    
-    const bgStyle = getCardBgStyle();
-    const cardClasses = `relative p-5 rounded-xl shadow-lg transition-transform duration-300 transform hover:-translate-y-1 ${bgStyle.className || ''}`;
-    
-    return (
-      <div 
-        key={card.id} 
-        className={cardClasses} 
-        style={bgStyle.backgroundColor ? { backgroundColor: bgStyle.backgroundColor } : {}}
-      >
-        {/* Card Header */}
-        <div className="flex justify-between mb-8">
-          <div>
-            <img 
-              src={`/assets/icons/${card.logo || 'generic-card-logo.png'}`} 
-              alt={card.cardName} 
-              className="h-10"
-            />
-          </div>
-          <Menu as="div" className="relative">
-            <Menu.Button className="text-white hover:text-gray-200 focus:outline-none">
-              <EllipsisVerticalIcon className="h-5 w-5" />
-            </Menu.Button>
-            <Transition
-              enter="transition ease-out duration-100"
-              enterFrom="transform opacity-0 scale-95"
-              enterTo="transform opacity-100 scale-100"
-              leave="transition ease-in duration-75"
-              leaveFrom="transform opacity-100 scale-100"
-              leaveTo="transform opacity-0 scale-95"
-            >
-              <Menu.Items className="absolute right-0 mt-2 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
-                <div className="py-1">
-                  <Menu.Item>
-                    {({ active }) => (
-                      <Link
-                        to={`/cards/${card.id}`}
-                        className={`flex items-center px-4 py-2 text-sm ${
-                          active ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
-                        }`}
-                      >
-                        <PencilIcon className="h-4 w-4 mr-2" />
-                        Edit Card
-                      </Link>
-                    )}
-                  </Menu.Item>
-                  <Menu.Item>
-                    {({ active }) => (
-                      <button
-                        className={`flex items-center px-4 py-2 text-sm w-full text-left ${
-                          active ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
-                        }`}
-                      >
-                        <LockClosedIcon className="h-4 w-4 mr-2" />
-                        Freeze Card
-                      </button>
-                    )}
-                  </Menu.Item>
-                  <Menu.Item>
-                    {({ active }) => (
-                      <button
-                        className={`flex items-center px-4 py-2 text-sm w-full text-left ${
-                          active ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
-                        }`}
-                      >
-                        <StarIcon className="h-4 w-4 mr-2" />
-                        Set as Default
-                      </button>
-                    )}
-                  </Menu.Item>
-                  <Menu.Item>
-                    {({ active }) => (
-                      <button
-                        onClick={() => handleDeleteCard(card.id)}
-                        className={`flex items-center px-4 py-2 text-sm w-full text-left ${
-                          active ? 'bg-danger-50 text-danger-900' : 'text-danger-700'
-                        }`}
-                      >
-                        <TrashIcon className="h-4 w-4 mr-2" />
-                        Remove Card
-                      </button>
-                    )}
-                  </Menu.Item>
-                </div>
-              </Menu.Items>
-            </Transition>
-          </Menu>
-        </div>
-        
-        {/* Card Number */}
-        <div className="mb-6">
-          <p className="text-sm text-white text-opacity-80 mb-1">Card Number</p>
-          <p className="text-lg font-mono text-white tracking-wider">
-            {card.cardNumber || '•••• •••• •••• ••••'}
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Cards</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
+            Manage your credit and debit cards
           </p>
         </div>
-        
-        {/* Card Details */}
-        <div className="flex justify-between">
-          <div>
-            <p className="text-sm text-white text-opacity-80 mb-1">Card Holder</p>
-            <p className="text-white font-medium">{card.cardHolder}</p>
-          </div>
-          <div>
-            <p className="text-sm text-white text-opacity-80 mb-1">Expires</p>
-            <p className="text-white font-medium">{card.expiryDate}</p>
-          </div>
-          <div>
-            <p className="text-sm text-white text-opacity-80 mb-1">Type</p>
-            <p className="text-white font-medium">{card.cardType}</p>
-          </div>
+        <div className="flex gap-2">
+          <button 
+            onClick={handleRefresh}
+            className="p-2 rounded-full bg-white shadow-sm hover:bg-gray-50 transition-colors dark:bg-dark-800 dark:hover:bg-dark-700"
+            disabled={refreshing}
+          >
+            <ArrowPathIcon className={`h-5 w-5 text-gray-600 dark:text-gray-400 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
+          <button 
+            onClick={() => navigate('/cards/add')}
+            className="btn btn-primary flex items-center"
+          >
+            <PlusIcon className="h-5 w-5 mr-1" />
+            Add Card
+          </button>
         </div>
       </div>
-    );
-  };
-  
-  // Render card list
-  const renderCardList = () => {
-    if (loading) {
-      return (
-        <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+
+      {cardsLoading ? (
+        <div className="flex justify-center items-center h-64">
+          <LoadingSpinner size="h-12 w-12" />
         </div>
-      );
-    }
-    
-    if (error) {
-      return (
-        <div className="flex justify-center items-center py-12 text-danger-600">
-          <ExclamationCircleIcon className="h-6 w-6 mr-2" />
-          <p>Error loading cards. Please try again later.</p>
+      ) : cardsError ? (
+        <div className="bg-white dark:bg-dark-800 rounded-lg shadow-md p-6 text-center">
+          <p className="text-red-500 dark:text-red-400">{cardsError}</p>
+          <button 
+            className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg"
+            onClick={refreshCards}
+          >
+            Try Again
+          </button>
         </div>
-      );
-    }
-    
-    if (!cards || cards.length === 0) {
-      return (
-        <div className="flex flex-col items-center justify-center py-12">
-          <CreditCardIcon className="h-16 w-16 text-gray-400 mb-4" />
-          <p className="text-gray-500 mb-6">You haven't added any cards yet.</p>
-          <Button variant="primary" onClick={handleAddCard}>
-            <PlusIcon className="h-5 w-5 mr-2" />
-            Add Your First Card
-          </Button>
+      ) : cards.length === 0 ? (
+        <div className="bg-white dark:bg-dark-800 rounded-lg shadow-md p-8 text-center">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900/30">
+            <CreditCardIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+          </div>
+          <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-white">No cards found</h3>
+          <p className="mt-1 text-gray-500 dark:text-gray-400">
+            Add your first card to start managing your finances.
+          </p>
+          <div className="mt-6">
+            <button
+              onClick={() => navigate('/cards/add')}
+              className="btn btn-primary"
+            >
+              Add Card
+            </button>
+          </div>
         </div>
-      );
-    }
-    
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-        {cards.map(card => renderCreditCard(card))}
-        
-        {/* Add Card Button */}
-        <button
-          onClick={handleAddCard}
-          className="border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center p-5 h-44 transition-colors duration-300 hover:border-primary-500 hover:bg-primary-50"
+      ) : (
+        <motion.div 
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
         >
-          <PlusIcon className="h-10 w-10 text-gray-400" />
-          <p className="mt-2 text-gray-500 font-medium">Add New Card</p>
-        </button>
-      </div>
-    );
-  };
-  
-  // Render card benefits
-  const renderCardBenefits = () => {
-    if (!cards || cards.length === 0) return null;
-    
-    return (
-      <Card title="Card Rewards & Benefits" className="mb-6">
-        <div className="divide-y divide-gray-200">
           {cards.map(card => (
-            <div key={`benefits-${card.id}`} className="py-4 first:pt-0 last:pb-0">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center">
-                  <CreditCardIcon className="h-5 w-5 text-gray-500 mr-2" />
-                  <span className="font-medium text-gray-900">{card.cardName}</span>
+            <motion.div
+              key={card.id}
+              variants={cardVariants}
+              whileHover="hover"
+              whileTap="tap"
+              onClick={() => navigate(`/cards/${card.id}`)}
+              className="bg-white dark:bg-dark-800 rounded-xl shadow-md overflow-hidden cursor-pointer"
+            >
+              {/* Card Display */}
+              <div 
+                className="h-48 p-6 flex flex-col justify-between"
+                style={{ 
+                  backgroundColor: card.color || '#4C1D95',
+                  backgroundImage: 'linear-gradient(135deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.3) 100%)'
+                }}
+              >
+                <div className="flex justify-between items-start">
+                  <div className="text-white font-bold tracking-widest text-lg">
+                    {card.cardType}
+                  </div>
                 </div>
-                {renderCardTypeIndicator(card.cardType)}
+                
+                <div>
+                  <div className="text-white text-xl mb-1 font-medium">{card.cardName}</div>
+                  <div className="text-white/80 text-sm">•••• {card.cardNumber.slice(-4)}</div>
+                </div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-2">
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <p className="text-xs text-gray-500 mb-1">Travel Points</p>
-                  <p className="text-lg font-semibold text-primary-600">{card.rewards.travelPoints}x</p>
+              {/* Card Details */}
+              <div className="p-4">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="font-medium text-gray-900 dark:text-white">Credit Utilization</h3>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    {getUtilizationPercentage(card).toFixed(1)}%
+                  </span>
                 </div>
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <p className="text-xs text-gray-500 mb-1">Dining Points</p>
-                  <p className="text-lg font-semibold text-primary-600">{card.rewards.diningPoints}x</p>
+                
+                <div className="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700 mb-4">
+                  <div 
+                    className={`h-2 rounded-full ${getUtilizationColorClass(getUtilizationPercentage(card))}`}
+                    style={{ width: `${Math.min(100, getUtilizationPercentage(card))}%` }}
+                  ></div>
                 </div>
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <p className="text-xs text-gray-500 mb-1">Grocery Points</p>
-                  <p className="text-lg font-semibold text-primary-600">{card.rewards.groceryPoints}x</p>
+                
+                <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  <span>{formatCurrency(card.currentMonthSpending)} spent</span>
+                  <span>{formatCurrency(card.creditLimit)} limit</span>
                 </div>
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <p className="text-xs text-gray-500 mb-1">Gas Cashback</p>
-                  <p className="text-lg font-semibold text-primary-600">{card.rewards.gasCashback}%</p>
+                
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="bg-blue-50 rounded-lg p-3 dark:bg-blue-900/20">
+                    <div className="text-sm text-blue-700 dark:text-blue-400 mb-1">30-Day Spending</div>
+                    {transactionsLoading[card.id] ? (
+                      <div className="flex justify-center p-1">
+                        <LoadingSpinner size="h-4 w-4" color="text-blue-500" />
+                      </div>
+                    ) : (
+                      <div className="text-xl font-semibold text-blue-900 dark:text-blue-300">
+                        {formatCurrency(getRecentSpending(card.id))}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="bg-purple-50 rounded-lg p-3 dark:bg-purple-900/20">
+                    <div className="text-sm text-purple-700 dark:text-purple-400 mb-1">Recent Rewards</div>
+                    {transactionsLoading[card.id] ? (
+                      <div className="flex justify-center p-1">
+                        <LoadingSpinner size="h-4 w-4" color="text-purple-500" />
+                      </div>
+                    ) : (
+                      <div className="text-xl font-semibold text-purple-900 dark:text-purple-300">
+                        {formatCurrency(getRecentRewards(card.id))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Recent Transactions */}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Recent Transactions</h4>
+                  {transactionsLoading[card.id] ? (
+                    <div className="flex justify-center p-4">
+                      <LoadingSpinner size="h-6 w-6" />
+                    </div>
+                  ) : cardTransactions[card.id] && cardTransactions[card.id].length > 0 ? (
+                    <div className="space-y-2">
+                      {cardTransactions[card.id].slice(0, 3).map((tx) => (
+                        <div key={tx._id} className="flex justify-between items-center text-sm border-b border-gray-100 pb-2 dark:border-dark-700">
+                          <div>
+                            <div className="font-medium text-gray-800 dark:text-gray-200">{tx.merchantName}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">{tx.category}</div>
+                          </div>
+                          <div className={tx.amount < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}>
+                            {tx.amount < 0 ? '-' : '+'}{formatCurrency(Math.abs(tx.amount))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center text-sm text-gray-500 dark:text-gray-400 py-2">
+                      No recent transactions
+                    </div>
+                  )}
                 </div>
               </div>
-              
-              <Link to={`/cards/${card.id}`} className="text-primary-600 hover:text-primary-800 text-sm font-medium flex items-center">
-                View Card Details
-                <ChevronRightIcon className="h-4 w-4 ml-1" />
-              </Link>
-            </div>
+            </motion.div>
           ))}
-        </div>
-      </Card>
-    );
-  };
-  
-  // Render spending limits
-  const renderSpendingLimits = () => {
-    if (!cards || cards.length === 0) return null;
-    
-    return (
-      <Card title="Monthly Spending Limits" className="mb-6">
-        <div className="divide-y divide-gray-200">
-          {cards.map(card => (
-            <div key={`limits-${card.id}`} className="py-4 first:pt-0 last:pb-0">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center">
-                  <CreditCardIcon className="h-5 w-5 text-gray-500 mr-2" />
-                  <span className="font-medium text-gray-900">{card.cardName}</span>
-                </div>
-                <div className="text-sm text-gray-500">
-                  ${card.currentMonthSpending.toFixed(2)} / ${card.monthlySpendingLimit.toFixed(2)}
-                </div>
-              </div>
-              
-              <div className="w-full bg-gray-200 rounded-full h-2.5">
-                <div 
-                  className={`h-2.5 rounded-full ${
-                    (card.currentMonthSpending / card.monthlySpendingLimit) > 0.9 
-                      ? 'bg-danger-500' 
-                      : (card.currentMonthSpending / card.monthlySpendingLimit) > 0.75
-                        ? 'bg-warning-500'
-                        : 'bg-success-500'
-                  }`}
-                  style={{ width: `${Math.min(100, (card.currentMonthSpending / card.monthlySpendingLimit) * 100)}%` }}
-                ></div>
-              </div>
-              
-              <div className="flex justify-between mt-2">
-                <div className="text-sm text-gray-500">
-                  {((card.currentMonthSpending / card.monthlySpendingLimit) * 100).toFixed(0)}% of limit used
-                </div>
-                <button className="text-primary-600 hover:text-primary-800 text-sm font-medium">
-                  Adjust Limit
-                </button>
-              </div>
+          
+          {/* Add Card Button */}
+          <motion.div
+            variants={cardVariants}
+            whileHover="hover"
+            whileTap="tap"
+            onClick={() => navigate('/cards/add')}
+            className="bg-gray-50 dark:bg-dark-700 rounded-xl border-2 border-dashed border-gray-300 dark:border-dark-600 flex flex-col items-center justify-center p-6 cursor-pointer h-[420px]"
+          >
+            <div className="rounded-full bg-gray-100 p-6 mb-4 dark:bg-dark-600">
+              <PlusIcon className="h-8 w-8 text-gray-600 dark:text-gray-400" />
             </div>
-          ))}
-        </div>
-      </Card>
-    );
-  };
-  
-  return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-gray-900">Your Cards</h2>
-        <Button variant="primary" onClick={handleAddCard}>
-          <PlusIcon className="h-5 w-5 mr-2" />
-          Add New Card
-        </Button>
-      </div>
-      
-      {renderCardList()}
-      {renderCardBenefits()}
-      {renderSpendingLimits()}
-      
-      {/* We would need to implement the Add Card Modal here */}
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Add New Card</h3>
+            <p className="text-gray-500 dark:text-gray-400 text-center max-w-xs">
+              Connect a new credit or debit card to manage all your finances in one place
+            </p>
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   );
 };

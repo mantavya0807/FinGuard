@@ -20,11 +20,11 @@ import RegisterScreen from './components/auth/RegisterScreen';
 // Custom hooks
 import { useAuth } from './hooks/useAuth';
 
-
 // Dashboard screens
-import DashboardNavigator from './components/dashboard/DashboardNavigator';
+import Dashboard from './components/dashboard/Dashboard'; // New Dashboard component
 import CardManagement from './components/dashboard/CardManagement';
 import CardDetailScreen from './components/dashboard/CardDetailScreen';
+import AddCardScreen from './components/dashboard/AddCardScreen'; // New screen for adding cards manually
 
 // Payment screens
 import PaymentHistoryScreen from './components/payments/PaymentHistoryScreen';
@@ -41,10 +41,10 @@ import RewardsHistoryScreen from './components/rewards/RewardsHistoryScreen';
 import ProfileScreen from './components/profile/ProfileScreen';
 import SettingsScreen from './components/profile/SettingsScreen';
 
-// Analytics screens - Import placeholder component for now
+// Analytics screens
 import AnalyticsScreen from './components/analytics/AnalyticsScreen';
 
-// Security screens - Import placeholder component for now
+// Security screens
 import SecurityScreen from './components/security/SecurityScreen';
 
 // Placeholder for any missing components
@@ -59,7 +59,7 @@ const PlaceholderScreen = ({ title }) => (
 
 // Protected route component
 const ProtectedRoute = ({ children }) => {
-  const { user, loading, isAuthenticated } = useAuth();
+  const { user, loading } = useAuth();
   
   if (loading) {
     return (
@@ -69,7 +69,7 @@ const ProtectedRoute = ({ children }) => {
     );
   }
   
-  if (!isAuthenticated) {
+  if (!user) {
     return <Navigate to="/login" />;
   }
   
@@ -142,7 +142,7 @@ function App() {
               <Route path="/" element={
                 <ProtectedRoute>
                   <AppLayout>
-                    <DashboardNavigator />
+                    <Dashboard />
                   </AppLayout>
                 </ProtectedRoute>
               } />
@@ -152,6 +152,14 @@ function App() {
                 <ProtectedRoute>
                   <AppLayout>
                     <CardManagement />
+                  </AppLayout>
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/cards/add" element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <AddCardScreen />
                   </AppLayout>
                 </ProtectedRoute>
               } />
