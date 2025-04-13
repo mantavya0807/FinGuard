@@ -1,51 +1,83 @@
-// src/popup/App.js
-import React, { useState } from "react";
-import { getMerchantCategoryFromGemini } from "./GeminiChat"; // Import the API function
+import React, { useEffect, useState } from "react";
+import { getMerchantCategoryFromGemini } from "./GeminiChat";
 
 function Detect() {
   const [merchant, setMerchant] = useState("");
-  const [category, setCategory] = useState(""); // New state to store the merchant category
+  const [category, setCategory] = useState("");
+  const [isCheckoutPage, setIsCheckoutPage] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const handleClick = async () => {
+  useEffect(() => {
     chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
       if (tabs && tabs.length > 0) {
-        const currentUrl = tabs[0].url;
-        try {
-          const urlObject = new URL(currentUrl);
-          let hostname = urlObject.hostname;
+        const currentTab = tabs[0];
 
-          if (hostname.startsWith("www.")) {
-            hostname = hostname.slice(4);
+        chrome.scripting.executeScript(
+          {
+            target: { tabId: currentTab.id },
+            func: () => {
+              const hostname = window.location.hostname.replace(/^www\./, "");
+              const parts = hostname.split(".");
+              const merchant = parts.length > 0 ? parts[0] : "unknown";
+
+              const checkoutKeywords = [
+                "checkout",
+                "payment",
+                "purchase",
+              ];
+              const pageContent = `${window.location.href.toLowerCase()} ${document.title.toLowerCase()}`;
+              const isCheckout = checkoutKeywords.some((kw) =>
+                pageContent.includes(kw)
+              );
+
+              return { merchant, isCheckout };
+            },
+          },
+          async (results) => {
+            if (chrome.runtime.lastError || !results || results.length === 0) {
+              console.error("Script injection failed");
+              setLoading(false);
+              return;
+            }
+
+            const { merchant, isCheckout } = results[0].result;
+            setMerchant(merchant);
+            setIsCheckoutPage(isCheckout);
+
+            try {
+              const categoryResult = await getMerchantCategoryFromGemini(
+                merchant
+              );
+              setCategory(categoryResult);
+            } catch (err) {
+              console.error("Gemini category fetch failed:", err);
+              setCategory("Unknown");
+            }
+
+            setLoading(false);
           }
-
-          const parts = hostname.split(".");
-          const merchantName =
-            parts.length > 0 ? parts[0] : "Could not identify merchant";
-
-          setMerchant(merchantName);
-
-          // Get the merchant category from Gemini
-          const categoryResponse = await getMerchantCategoryFromGemini(
-            merchantName
-          );
-          setCategory(categoryResponse); // Update state with the category
-        } catch (error) {
-          setMerchant("Invalid URL");
-          setCategory(""); // Clear category if there was an error
-          console.error("Error parsing URL:", error);
-        }
+        );
       } else {
         setMerchant("Could not retrieve tab URL");
-        setCategory("");
+        setCategory("Unknown");
+        setIsCheckoutPage(false);
+        setLoading(false);
       }
     });
-  };
+  }, []);
 
   return (
     <div>
-      <button onClick={handleClick}>Get Merchant</button>
-      {merchant && <p>Merchant: {merchant}</p>}
-      {category && <p>Merchant Category: {category}</p>}
+      <h2>Merchant Info</h2>
+      {loading ? (
+        <p>Loading...</p>
+      ) : (
+        <>
+          <p>Merchant: {merchant}</p>
+          <p>Category: {category}</p>
+          <p>This page {isCheckoutPage ? "is" : "is not"} a checkout page.</p>
+        </>
+      )}
     </div>
   );
 }
