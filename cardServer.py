@@ -375,8 +375,8 @@ def clean_reward_data(raw_text, card_name):
 def main():
     # Mapping of card URLs to their names.
     card_mapping = {
-        "https://www.americanexpress.com/us/credit-cards/card/blue-cash-everyday/": "AMEX Blue Cash Everyday",
-        "https://www.americanexpress.com/us/credit-cards/card/blue-cash-preferred/": "AMEX Blue Cash Preferred® Card",
+        "https://www.americanexpress.com/us/credit-cards/card/blue-cash-everyday/": "AMEX Blue Cash Everyday Card",
+        "https://www.americanexpress.com/us/credit-cards/card/blue-cash-preferred/": "AMEX Blue Cash Preferred Card",
         "https://www.capitalone.com/credit-cards/savor/": "CapitalOne Savor Card",
         "https://www.capitalone.com/credit-cards/quicksilver/": "CapitalOne Quicksilver Rewards",
         "https://www.discover.com/credit-cards/student-credit-card/it-card.html?sc=RJUK&cmpgnid=ls-dca-ir-student-it-RJUK-dtop-396&irgwc=1&sid=09471138&pid=354997&aid=568217&source=Affiliates&sku=110&iq_id=_ec2gixkq6skaxlpblvls2umxo222x01am3utmhsp00#calender-link": "Discover It Student Card",
