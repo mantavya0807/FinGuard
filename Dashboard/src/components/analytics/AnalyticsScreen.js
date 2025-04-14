@@ -54,7 +54,7 @@ const AnalyticsScreen = () => {
   };
 
   const isAnyDataLoading = () => {
-    return Object.values(loading).some(Boolean);
+    return Object.values(loading).some(Boolean) || refreshing;
   };
 
   const renderTabContent = () => {
@@ -68,7 +68,7 @@ const AnalyticsScreen = () => {
       case 'rewards':
         return <RewardOptimization data={rewardsOptimization} loading={loading.rewards} error={error.rewards} />;
       case 'budget':
-        return <BudgetTracking data={budgetAnalysis} loading={loading.budget} error={error.budget} />;
+        return <BudgetTracking data={budgetAnalysis} loading={loading.budget} error={error.budget} onRefresh={refreshAllAnalytics} />;
       case 'insights':
         return <FinancialInsights data={insights} loading={loading.insights} error={error.insights} onGenerate={generateFinancialInsights} />;
       case 'chatbot':
@@ -76,30 +76,66 @@ const AnalyticsScreen = () => {
       default:
         return (
           <div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 mb-6">
-              <div className="col-span-1">
-                <CategoryBreakdown data={categorySpending} loading={loading.categories} error={error.categories} compact={true} />
+            {/* Overview Tab - Shows compact versions of all analytics components */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              {/* First row */}
+              <div className="bg-white dark:bg-dark-800 rounded-xl shadow-md p-4 overflow-hidden">
+                <CategoryBreakdown 
+                  data={categorySpending} 
+                  loading={loading.categories} 
+                  error={error.categories} 
+                  compact={true} 
+                />
               </div>
-              <div className="col-span-1">
-                <SpendingTrends data={spendingTrends} loading={loading.trends} error={error.trends} compact={true} />
+              <div className="bg-white dark:bg-dark-800 rounded-xl shadow-md p-4 overflow-hidden">
+                <SpendingTrends 
+                  data={spendingTrends} 
+                  loading={loading.trends} 
+                  error={error.trends} 
+                  compact={true} 
+                />
               </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 mb-6">
-              <div className="col-span-1">
-                <RewardOptimization data={rewardsOptimization} loading={loading.rewards} error={error.rewards} compact={true} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              {/* Second row */}
+              <div className="bg-white dark:bg-dark-800 rounded-xl shadow-md p-4 overflow-hidden">
+                <RewardOptimization 
+                  data={rewardsOptimization} 
+                  loading={loading.rewards} 
+                  error={error.rewards} 
+                  compact={true} 
+                />
               </div>
-              <div className="col-span-1">
-                <BudgetTracking data={budgetAnalysis} loading={loading.budget} error={error.budget} compact={true} />
+              <div className="bg-white dark:bg-dark-800 rounded-xl shadow-md p-4 overflow-hidden">
+                <BudgetTracking 
+                  data={budgetAnalysis} 
+                  loading={loading.budget} 
+                  error={error.budget} 
+                  compact={true} 
+                  onRefresh={refreshAllAnalytics}
+                />
               </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-              <div className="col-span-1">
-                <MerchantAnalysis data={merchantAnalysis} loading={loading.merchants} error={error.merchants} compact={true} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Third row */}
+              <div className="bg-white dark:bg-dark-800 rounded-xl shadow-md p-4 overflow-hidden">
+                <MerchantAnalysis 
+                  data={merchantAnalysis} 
+                  loading={loading.merchants} 
+                  error={error.merchants} 
+                  compact={true} 
+                />
               </div>
-              <div className="col-span-1">
-                <FinancialInsights data={insights} loading={loading.insights} error={error.insights} onGenerate={generateFinancialInsights} compact={true} />
+              <div className="bg-white dark:bg-dark-800 rounded-xl shadow-md p-4 overflow-hidden">
+                <FinancialInsights 
+                  data={insights} 
+                  loading={loading.insights} 
+                  error={error.insights} 
+                  onGenerate={generateFinancialInsights} 
+                  compact={true} 
+                />
               </div>
             </div>
           </div>
@@ -113,7 +149,7 @@ const AnalyticsScreen = () => {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
-      className="max-w-7xl mx-auto relative"
+      className="max-w-7xl mx-auto relative pb-8"
     >
       <div className="bg-gradient-to-r from-primary-600 to-purple-600 rounded-xl text-white p-6 mb-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
@@ -124,13 +160,13 @@ const AnalyticsScreen = () => {
             </p>
           </div>
           
-          <div className="mt-4 md:mt-0 flex gap-2">
+          <div className="mt-4 md:mt-0 flex flex-wrap gap-2">
             <button
               className="bg-white text-primary-700 px-4 py-2 rounded-lg font-medium hover:bg-primary-50 transition-colors inline-flex items-center"
               onClick={handleRefresh}
-              disabled={refreshing || isAnyDataLoading()}
+              disabled={isAnyDataLoading()}
             >
-              <ArrowPathIcon className={`h-5 w-5 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              <ArrowPathIcon className={`h-5 w-5 mr-2 ${isAnyDataLoading() ? 'animate-spin' : ''}`} />
               Refresh Data
             </button>
             
@@ -200,9 +236,9 @@ const AnalyticsScreen = () => {
       </div>
       
       {/* Main Content */}
-      <div className="bg-white dark:bg-dark-800 rounded-xl shadow-md p-6 overflow-hidden mb-6">
+      <div className="bg-white dark:bg-dark-800 rounded-xl shadow-md p-6 overflow-hidden">
         {/* Loading state */}
-        {isAnyDataLoading() && Object.values(error).every(e => !e) && (
+        {isAnyDataLoading() && (
           <div className="absolute inset-0 bg-white/50 dark:bg-dark-800/50 z-10 flex items-center justify-center">
             <LoadingSpinner size="h-12 w-12" />
           </div>

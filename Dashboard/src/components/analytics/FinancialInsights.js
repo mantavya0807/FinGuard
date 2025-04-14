@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
+import ReactMarkdown from 'react-markdown';
 import { 
   LightBulbIcon, 
   ArrowPathIcon,
@@ -74,173 +75,56 @@ const FinancialInsights = ({ data, loading, error, onGenerate, compact = false }
     );
   }
   
-  // Process insights text into coherent sections
-  const processInsights = (text) => {
-    // Clean up any numbered lines that are just digits
-    const cleanedText = text.replace(/^\d+\s*$/gm, '').trim();
+  // Clean up insights text by removing AI system text
+  const cleanInsightsText = (text) => {
+    // Remove any AI system prompts/headers that shouldn't be in the output
+    let cleanedText = text
+      .replace(/AI-Powered Financial Insights.*?for last 100 transactions/s, '')
+      .replace(/getitng this as out put from this pageL$/m, '')
+      .replace(/Okay, here's an analysis of the transaction data[,.]/i, '')
+      .replace(/I've tried to provide actionable insights with specific recommendations\./i, '')
+      .trim();
+      
+    return cleanedText;
+  };
+  
+  // Extract sections from markdown text
+  const extractSections = (markdownText) => {
+    const cleanedText = cleanInsightsText(markdownText);
     
-    // Split the text into sections based on headers 
+    // Split the text into sections based on headers
     const sections = [];
+    const lines = cleanedText.split('\n');
+    let currentSection = { title: 'Overview', content: [] };
+    let inSection = false;
     
-    // Find the main sections (headers followed by content)
-    const headerRegex = /\b([A-Z][A-Za-z\s&]+)(?::|$)/gm;
-    let match;
-    let lastIndex = 0;
-    let mainContent = '';
-    
-    // Extract the introduction (content before the first header)
-    const firstHeaderMatch = headerRegex.exec(cleanedText);
-    if (firstHeaderMatch) {
-      // If there's content before the first header, add it as main content
-      if (firstHeaderMatch.index > 0) {
-        mainContent = cleanedText.substring(0, firstHeaderMatch.index).trim();
-      }
-      // Reset for the full scan
-      headerRegex.lastIndex = 0;
-    } else {
-      // If no headers, all content is main content
-      mainContent = cleanedText;
-    }
-    
-    // Add the main content if it exists
-    if (mainContent) {
-      sections.push({
-        type: 'content',
-        content: mainContent
-      });
-    }
-    
-    // Now find all headers and their content
-    while ((match = headerRegex.exec(cleanedText)) !== null) {
-      const title = match[1].trim();
-      const startIndex = match.index;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
       
-      // If we've found a previous header
-      if (lastIndex > 0) {
-        // Get content between the previous header and this one
-        const content = cleanedText.substring(lastIndex, startIndex).trim();
-        if (content) {
-          sections.push({
-            type: 'content',
-            content: processContent(content)
-          });
+      // Check if this is a header (starts with ## or **)
+      if (line.startsWith('##') || (line.startsWith('**') && line.endsWith('**') && !line.includes(' **'))) {
+        // If we were already in a section, add it to our sections array
+        if (inSection && currentSection.content.length > 0) {
+          sections.push({ ...currentSection });
         }
+        
+        // Start a new section
+        const title = line.replace(/^##\s*/, '').replace(/^\*\*|\*\*$/g, '').trim();
+        currentSection = { title, content: [] };
+        inSection = true;
+      } else if (line !== '') {
+        // Add non-empty lines to the current section's content
+        currentSection.content.push(line);
       }
-      
-      // Add the header
-      sections.push({
-        type: 'header',
-        title
-      });
-      
-      // Update last index to the end of the header
-      lastIndex = match.index + match[0].length;
     }
     
-    // Add the final section content after the last header
-    if (lastIndex > 0 && lastIndex < cleanedText.length) {
-      const content = cleanedText.substring(lastIndex).trim();
-      if (content) {
-        sections.push({
-          type: 'content',
-          content: processContent(content)
-        });
-      }
+    // Add the last section if it has content
+    if (currentSection.content.length > 0) {
+      sections.push(currentSection);
     }
     
     return sections;
   };
-  
-  // Process content to handle bullet points and formatting
-  const processContent = (content) => {
-    // Process bullet points (lines starting with *)
-    const lines = content.split('\n');
-    
-    // Processed content structure
-    const processed = [];
-    let currentParagraph = [];
-    let inBulletList = false;
-    let currentBulletList = [];
-    
-    // Process line by line
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      
-      // Skip empty lines
-      if (!line) {
-        // If we were in a bullet list, add it to processed content
-        if (inBulletList && currentBulletList.length > 0) {
-          processed.push({
-            type: 'bulletList',
-            items: [...currentBulletList]
-          });
-          currentBulletList = [];
-          inBulletList = false;
-        }
-        
-        // If we have a paragraph, add it
-        if (currentParagraph.length > 0) {
-          processed.push({
-            type: 'paragraph',
-            content: currentParagraph.join(' ')
-          });
-          currentParagraph = [];
-        }
-        continue;
-      }
-      
-      // Check if this is a bullet point
-      if (line.startsWith('*')) {
-        // If we were building a paragraph, add it first
-        if (currentParagraph.length > 0) {
-          processed.push({
-            type: 'paragraph',
-            content: currentParagraph.join(' ')
-          });
-          currentParagraph = [];
-        }
-        
-        // Mark that we're in a bullet list
-        inBulletList = true;
-        
-        // Add the bullet item (remove the * and trim)
-        currentBulletList.push(line.substring(1).trim());
-      } else {
-        // If we were in a bullet list, add it to processed content
-        if (inBulletList && currentBulletList.length > 0) {
-          processed.push({
-            type: 'bulletList',
-            items: [...currentBulletList]
-          });
-          currentBulletList = [];
-          inBulletList = false;
-        }
-        
-        // Add to current paragraph
-        currentParagraph.push(line);
-      }
-    }
-    
-    // Add any remaining content
-    if (inBulletList && currentBulletList.length > 0) {
-      processed.push({
-        type: 'bulletList',
-        items: [...currentBulletList]
-      });
-    }
-    
-    if (currentParagraph.length > 0) {
-      processed.push({
-        type: 'paragraph',
-        content: currentParagraph.join(' ')
-      });
-    }
-    
-    return processed;
-  };
-  
-  // Parse the insight text
-  const insightSections = processInsights(data.insights);
   
   const formatDate = (dateString) => {
     try {
@@ -265,7 +149,7 @@ const FinancialInsights = ({ data, loading, error, onGenerate, compact = false }
       <h2 className="text-xl font-semibold text-gray-900 dark:text-white">AI-Powered Financial Insights</h2>
       <div className="flex items-center mt-2 md:mt-0">
         <button
-          className="btn btn-primary inline-flex items-center"
+          className="btn btn-primary inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
           onClick={handleGenerateInsights}
           disabled={generating}
         >
@@ -285,37 +169,19 @@ const FinancialInsights = ({ data, loading, error, onGenerate, compact = false }
     </div>
   );
 
-  // Function to render rich text with formatting
-  const renderRichText = (text) => {
-    const parts = text.split(/(\*\*.*?\*\*)/g);
-    return parts.map((part, j) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={j}>{part.slice(2, -2)}</strong>;
-      }
-      return part;
-    });
-  };
+  // Process insights into sections
+  const insightSections = extractSections(data.insights);
 
-  // Render content block based on type
-  const renderContentBlock = (block, index) => {
-    if (typeof block === 'string') {
-      return <p key={index} className="mb-3">{renderRichText(block)}</p>;
-    }
-    
-    switch (block.type) {
-      case 'paragraph':
-        return <p key={index} className="mb-3">{renderRichText(block.content)}</p>;
-      case 'bulletList':
-        return (
-          <ul key={index} className="list-disc pl-6 mb-3 space-y-1">
-            {block.items.map((item, i) => (
-              <li key={i}>{renderRichText(item)}</li>
-            ))}
-          </ul>
-        );
-      default:
-        return <p key={index} className="mb-3">{block}</p>;
-    }
+  // Custom components for ReactMarkdown
+  const components = {
+    h1: ({node, ...props}) => <h1 className="text-xl font-bold my-3" {...props} />,
+    h2: ({node, ...props}) => <h2 className="text-lg font-semibold my-3" {...props} />,
+    h3: ({node, ...props}) => <h3 className="text-md font-semibold my-2" {...props} />,
+    p: ({node, ...props}) => <p className="mb-3" {...props} />,
+    ul: ({node, ...props}) => <ul className="list-disc pl-6 mb-3 space-y-1" {...props} />,
+    ol: ({node, ...props}) => <ol className="list-decimal pl-6 mb-3 space-y-1" {...props} />,
+    li: ({node, ...props}) => <li className="mb-1" {...props} />,
+    strong: ({node, ...props}) => <strong className="font-semibold" {...props} />
   };
 
   return (
@@ -332,12 +198,12 @@ const FinancialInsights = ({ data, loading, error, onGenerate, compact = false }
         {(!compact || showDetails) && (
           <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-4">
             <SparklesIcon className="h-4 w-4 mr-1" />
-            Insights generated at {formatDate(data.generatedAt)} for {data.timeframe}
+            Insights generated at {formatDate(data.generatedAt || new Date())} for {data.timeframe || 'last 100 transactions'}
           </div>
         )}
         
         {/* Insights content */}
-        <div className={`${compact && !showDetails ? 'h-48 overflow-hidden' : ''} ${compact ? 'max-h-48 overflow-y-auto' : ''}`}>
+        <div className={`${compact && !showDetails ? 'h-48 overflow-hidden' : ''} ${compact && showDetails ? 'max-h-96 overflow-y-auto' : ''}`}>
           {compact && !showDetails ? (
             <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg p-4 text-white">
               <div className="flex items-center mb-2">
@@ -345,8 +211,8 @@ const FinancialInsights = ({ data, loading, error, onGenerate, compact = false }
                 <p className="font-medium">Top Financial Insight</p>
               </div>
               <p className="text-sm text-indigo-100">
-                {insightSections[0]?.content?.[0]?.content ? 
-                  renderRichText(insightSections[0].content[0].content.split('.')[0]) : 
+                {insightSections.length > 0 && insightSections[0].content.length > 0 ? 
+                  insightSections[0].content[0].split('.')[0] + '.' : 
                   "Generate insights to see tailored financial recommendations."}
               </p>
             </div>
@@ -359,20 +225,14 @@ const FinancialInsights = ({ data, loading, error, onGenerate, compact = false }
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, delay: index * 0.1 }}
                 >
-                  {section.type === 'header' ? (
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
-                      {section.title}
-                    </h3>
-                  ) : (
-                    <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 dark:bg-dark-700 dark:border-dark-600">
-                      {Array.isArray(section.content) ? 
-                        section.content.map((contentBlock, blockIndex) => 
-                          renderContentBlock(contentBlock, blockIndex)
-                        ) : 
-                        <p className="text-gray-800 dark:text-gray-200">{section.content}</p>
-                      }
-                    </div>
-                  )}
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
+                    {section.title}
+                  </h3>
+                  <div className="bg-gray-50 dark:bg-dark-700 border border-gray-100 dark:border-dark-600 rounded-lg p-4">
+                    <ReactMarkdown components={components}>
+                      {section.content.join('\n')}
+                    </ReactMarkdown>
+                  </div>
                 </motion.div>
               ))}
             </div>
