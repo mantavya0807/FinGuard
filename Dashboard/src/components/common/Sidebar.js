@@ -59,11 +59,6 @@ const Sidebar = () => {
       icon: CreditCardIcon
     },
     {
-      name: 'Accounts',
-      path: '/accounts',
-      icon: BuildingOfficeIcon
-    },
-    {
       name: 'Payments',
       path: '/payments/history',
       icon: BanknotesIcon
@@ -83,11 +78,6 @@ const Sidebar = () => {
       path: '/rewards',
       icon: GiftIcon
     },
-    {
-      name: 'Taxes',
-      path: '/taxes',
-      icon: ReceiptPercentIcon
-    }
   ];
   
   return (
@@ -171,22 +161,7 @@ const Sidebar = () => {
             transition={{ duration: 0.2 }}
             className="p-4 border-t border-gray-200 dark:border-dark-700"
           >
-            <div className="bg-gradient-to-r from-primary-50 to-violet-50 p-4 rounded-lg dark:from-primary-900/30 dark:to-violet-900/30">
-              <h4 className="font-medium text-primary-700 dark:text-primary-300 mb-2">Need Help?</h4>
-              <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
-                Have questions or need assistance with FinGuard?
-              </p>
-              <motion.a 
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                href="https://finguard.com/support" 
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-primary w-full text-center text-sm"
-              >
-                Contact Support
-              </motion.a>
-            </div>
+        
           </motion.div>
         )}
       </AnimatePresence>

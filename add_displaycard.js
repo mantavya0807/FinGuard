@@ -103,7 +103,7 @@ async function testFunctions() {
       // --- Test adding a card ---
       console.log("Adding a card...");
       // Replace the parameters below with test data.
-      await AddCard("4111111111111111", "My Visa Card", "John Doe", "12/24", "Visa", "1234");
+      await AddCard("4111111111111231", "AMEX Blue Cash Everyday Card", "J Doe", "1/2026", "Visa", "1234");
   
       // --- Test getting all cards ---
       console.log("Retrieving all cards...");
