@@ -4,17 +4,33 @@
   "version": "0.0.1",
   "description": "A simple extension for Fintech Guard",
   "icons": { 
-    "16": "vite.svg",
-    "48": "vite.svg",
-    "128": "vite.svg"
+    "16": "icons/png/icon16.png",
+    "48": "icons/png/icon48.png",
+    "128": "icons/png/icon128.png"
   },
   "action": {
     "default_popup": "index.html",
-    "default_title": "FinGuard" 
+    "default_title": "FinGuard",
+    "default_width": 400
   },
   "permissions": [
     "activeTab",  
     "scripting",  
-    "storage"     
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "http://localhost:3000/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content-script.js"]
+    }
   ]
 }
