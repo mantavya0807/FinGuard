@@ -1,8 +1,14 @@
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 
 Backend/.env
 Backend/node/modules
 Backend/node_modules/
+=======
+.venv
+Nudge/.env
+.env
+>>>>>>> Stashed changes
 =======
 .venv
 Nudge/.env
